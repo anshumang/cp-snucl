@@ -10,7 +10,7 @@ const char* kernel_src = "__kernel void sample(__global int* dst, __global int* 
 
 int main(int argc, char** argv)
 {
-  cl_device_type    DEV_TYPE = CL_DEVICE_TYPE_CPU;
+  cl_device_type    DEV_TYPE = CL_DEVICE_TYPE_GPU;
   cl_platform_id    platform;
   cl_device_id      device;
   cl_context        context;

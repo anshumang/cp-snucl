@@ -305,7 +305,7 @@ clReleaseDevice
   return CL_SUCCESS;
 }
 
-
+//SNS_ to be changed. Constant device number at start. Get the number of devices and then use that each time to create a context
 /* Context APIs */
 CL_API_ENTRY cl_context CL_API_CALL
 #ifdef SNUCL_API_WRAP

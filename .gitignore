@@ -1,0 +1,6 @@
+build/
+cscope.out
+bin/
+*.o
+lib/
+builtins/

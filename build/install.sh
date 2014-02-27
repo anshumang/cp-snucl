@@ -10,7 +10,7 @@ fi
 
 #Default Devices types
 X86=off
-LEGACY=off
+LEGACY=on
 
 #Default Cluster Mode
 CLUSTER=off

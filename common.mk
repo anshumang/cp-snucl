@@ -42,7 +42,7 @@ ifeq ($(cluster), 1)
 	CXX				:= mpic++
 	CXXFLAGS	+= -DCLUSTER
 	LDFLAGS		+= -lsnucl
-	LINKTAIL	+= -Wl,--wrap,main
+	#LINKTAIL	+= -Wl,--wrap,main
 else
 	CXX 			:= g++
 	LDFLAGS		+= -lsnucl 
