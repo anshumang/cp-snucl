@@ -406,6 +406,11 @@ public:
   size_t                        cnt_cmd_s; 
 };
 
+class __sns_CLDevice {
+	vector<CLDevice> devInst;
+	int numDev;
+}
+
 class CLContext : public CLObject {
 public:
   CLContext(cl_uint num_devices, const cl_device_id* devices, bool running_scheduler = true);
@@ -428,6 +433,8 @@ public:
 	size_t                   num_devices;
 	cl_context_properties*   properties;
 	size_t                   num_properties;
+
+  __sns_CLDevice sns_device;
 };
 
 class CLCommandQueue : public CLObject {
@@ -455,6 +462,12 @@ public:
   pthread_mutex_t             mutex_q;
 
   CLEvent*                    last_event;
+};
+
+class __sns_CLCommandQueue : public CLObject {
+public:
+  vector<CLCommandQueue> cqInst;
+  int numDev;
 };
 
 class CLCommand : public CLObject {
