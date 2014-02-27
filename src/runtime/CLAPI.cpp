@@ -308,6 +308,7 @@ clReleaseDevice
 //SNS_ to be changed. Constant device number at start. Get the number of devices and then use that each time to create a context
 /* Context APIs */
 CL_API_ENTRY cl_context CL_API_CALL
+#ifndef SNS
 #ifdef SNUCL_API_WRAP
 __wrap_clCreateContext
 #else
@@ -352,6 +353,58 @@ clCreateContext
 
   return &context->st_obj;
 }
+#else
+__sns_clCreateContext
+               (const cl_context_properties * properties,
+                cl_uint                       num_devices,
+                const cl_device_id *          devices,
+                void (CL_CALLBACK *pfn_notify)(const char *, const void *, size_t, void *),
+                void *                        user_data,
+                cl_int *                      errcode_ret) CL_API_SUFFIX__VERSION_1_0 {
+  cl_int err = CL_SUCCESS;
+	size_t num_properties = 0;
+
+  if (devices == NULL) err = CL_INVALID_VALUE;
+  if (num_devices == 0) err = CL_INVALID_VALUE;
+  if (pfn_notify == NULL && user_data != NULL) err = CL_INVALID_VALUE;
+
+  if (errcode_ret) *errcode_ret = err;
+  if (err != CL_SUCCESS) return NULL;
+
+	SNUCL_DevicesVerification(g_platform.devices, g_platform.devices.size(), devices, num_devices, err);
+
+	for (uint i=0; i<num_devices; i++) {
+		if (!devices[i]->c_obj->available) {
+			err = CL_DEVICE_NOT_AVAILABLE;
+			break;
+		}
+	}
+
+  if (errcode_ret) *errcode_ret = err;
+  if (err != CL_SUCCESS) return NULL;
+
+#define SPLIT_FACTOR 2
+  cl_device_id *sns_devices[SPLIT_FACTOR];
+
+  assert(SPLIT_FACTOR <= g_platform.devices.size());
+
+  for(int i=0; i<SPLIT_FACTOR; i++)
+     sns_devices[i] = g_platform.devices[i];
+
+  //CLContext* context = new CLContext(num_devices, devices);
+  CLContext* sns_context = new CLContext(SPLIT_FACTOR, sns_devices);
+	err = context->SetProperties(properties);
+
+  if (errcode_ret) *errcode_ret = err;
+  if (err != CL_SUCCESS) {
+		delete context;
+		return NULL;
+	}
+
+  //return &context->st_obj;
+  return &sns_context->st_obj;
+}
+#endif
 
 CL_API_ENTRY cl_context CL_API_CALL
 #ifdef SNUCL_API_WRAP
