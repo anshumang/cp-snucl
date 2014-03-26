@@ -404,12 +404,15 @@ public:
   size_t                        cnt_cmd_k; 
   size_t                        cnt_cmd_m; 
   size_t                        cnt_cmd_s; 
+
+//SNS
+  vector<CLDevice*> split_peers;
 };
 
-class __sns_CLDevice {
-	vector<CLDevice> devInst;
-	int numDev;
-}
+//class __sns_CLDevice {
+//	vector<CLDevice *> devPool;
+//	int numDev;
+//}
 
 class CLContext : public CLObject {
 public:
@@ -434,7 +437,7 @@ public:
 	cl_context_properties*   properties;
 	size_t                   num_properties;
 
-  __sns_CLDevice sns_device;
+  //__sns_CLDevice sns_device;
 };
 
 class CLCommandQueue : public CLObject {
@@ -466,8 +469,8 @@ public:
 
 class __sns_CLCommandQueue : public CLObject {
 public:
-  vector<CLCommandQueue> cqInst;
-  int numDev;
+  vector<CLCommandQueue *> cqPool;
+  //int size;
 };
 
 class CLCommand : public CLObject {
