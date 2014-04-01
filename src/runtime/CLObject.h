@@ -409,11 +409,6 @@ public:
   vector<CLDevice*> split_peers;
 };
 
-//class __sns_CLDevice {
-//	vector<CLDevice *> devPool;
-//	int numDev;
-//}
-
 class CLContext : public CLObject {
 public:
   CLContext(cl_uint num_devices, const cl_device_id* devices, bool running_scheduler = true);
@@ -437,7 +432,6 @@ public:
 	cl_context_properties*   properties;
 	size_t                   num_properties;
 
-  //__sns_CLDevice sns_device;
 };
 
 class CLCommandQueue : public CLObject {
@@ -465,12 +459,8 @@ public:
   pthread_mutex_t             mutex_q;
 
   CLEvent*                    last_event;
-};
-
-class __sns_CLCommandQueue : public CLObject {
-public:
-  vector<CLCommandQueue *> cqPool;
-  //int size;
+//SNS
+  vector<CLCommandQueue *> split_peers;
 };
 
 class CLCommand : public CLObject {

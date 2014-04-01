@@ -425,6 +425,7 @@ __sns_clCreateContext
 		delete context;
 		return NULL;
 	}
+}	// TODO check probably missed this close - added } -- siddharth
 
   //return &context->st_obj;
   return &sns_context->st_obj;
@@ -2271,6 +2272,7 @@ clFinish
 //TODO:change cb -> size
 //TODO new Command -> CommandFactory
 /* Enqueued Commands APIs */
+#ifndef SNS
 CL_API_ENTRY cl_int CL_API_CALL
 #ifdef SNUCL_API_WRAP
 __wrap_clEnqueueReadBuffer
@@ -2327,6 +2329,107 @@ clEnqueueReadBuffer
 
   return CL_SUCCESS;
 }
+#else 				//Verify adding from here siddharth
+CL_API_ENTRY cl_int CL_API_CALL
+__sns_clEnqueueReadBuffer
+                   (cl_command_queue    command_queue,
+                    cl_mem              buffer,
+                    cl_bool             blocking_read,
+                    size_t              offset,
+                    size_t              cb, 
+                    void *              ptr,
+                    cl_uint             num_events_in_wait_list,
+                    const cl_event *    event_wait_list,
+                    cl_event *          event) CL_API_SUFFIX__VERSION_1_0 {
+  if (command_queue == NULL) return CL_INVALID_COMMAND_QUEUE;
+
+  	CLCommandQueue* cmq = command_queue->c_obj;
+  	if (buffer == NULL) return CL_INVALID_MEM_OBJECT;
+
+	if (cmq->context != buffer->c_obj->context) return CL_INVALID_CONTEXT;
+
+  	for (uint i = 0; i < num_events_in_wait_list; ++i) {
+		if (!event_wait_list[i])
+			return CL_INVALID_EVENT_WAIT_LIST;
+
+		if (event_wait_list[i]->c_obj->context->c_obj != cmq->context )
+			return CL_INVALID_CONTEXT;
+	}
+
+	CLMem* b = buffer->c_obj;
+	if (cb + offset > b->size || offset > b->size || ptr == NULL) return CL_INVALID_VALUE;
+
+  	if ((event_wait_list == NULL && num_events_in_wait_list > 0) || (event_wait_list != NULL && num_events_in_wait_list == 0)) return CL_INVALID_EVENT_WAIT_LIST;
+
+	if (b->flags & (CL_MEM_HOST_WRITE_ONLY | CL_MEM_HOST_NO_ACCESS))
+		return CL_INVALID_OPERATION;
+
+  	CLCommand* command = new CLCommand(cmq, num_events_in_wait_list, event_wait_list, CL_COMMAND_READ_BUFFER);
+  	command->mem_src = buffer->c_obj;
+	command->mem_src->SetCommand(command);
+  	command->off_src = offset;
+  	//command->cb = cb;
+  	command->cb = cb/(cmq->split_peers.size() + 1);
+  	command->ptr = (void *) ptr;
+
+  	if (event) *event = command->DisclosedToUser();
+  	if (g_platform.cluster) command->DisclosedToUser();
+
+  	cmq->Enqueue(command);
+
+	int cq_count = 0;
+
+  	for(vector<CLCommandQueue *>::iterator cq_iter = cmq->split_peers.begin(); cq_iter != cmq->split_peers.end(); cq_iter++){
+	
+		CLCommandQueue *cmq = (*cq_iter)->c_obj;
+
+		if (cmq->context != buffer->c_obj->context) return CL_INVALID_CONTEXT;
+
+  		for (uint i = 0; i < num_events_in_wait_list; ++i) {
+			if (!event_wait_list[i])
+				return CL_INVALID_EVENT_WAIT_LIST;
+
+			if (event_wait_list[i]->c_obj->context->c_obj != cmq->context )
+				return CL_INVALID_CONTEXT;
+		}
+
+		size_t curr_offset = offset + cb/(cmq->split_peers.size()+ 1) * cq_count; 
+
+		CLMem* b = buffer->c_obj;
+//		if (cb + offset > b->size || offset > b->size || ptr == NULL) return CL_INVALID_VALUE;
+
+		if (cb + offset > b->size || curr_offset > b->size || ptr == NULL) return CL_INVALID_VALUE;
+
+  		if ((event_wait_list == NULL && num_events_in_wait_list > 0) || (event_wait_list != NULL && num_events_in_wait_list == 0)) return CL_INVALID_EVENT_WAIT_LIST;
+
+		if (b->flags & (CL_MEM_HOST_WRITE_ONLY | CL_MEM_HOST_NO_ACCESS))
+			return CL_INVALID_OPERATION;
+
+  		CLCommand* command = new CLCommand(cmq, num_events_in_wait_list, event_wait_list, CL_COMMAND_READ_BUFFER);
+  		command->mem_src = buffer->c_obj;
+		command->mem_src->SetCommand(command);
+  		//command->off_src = offset;
+  		command->off_src = curr_offset;
+  		//command->cb = cb;
+  		command->cb = cb/(cmq->split_peers.size() + 1);
+  		command->ptr = (void *) ptr;
+
+  		if (event) *event = command->DisclosedToUser();
+  		if (g_platform.cluster) command->DisclosedToUser();
+
+	  	cmq->Enqueue(command);
+		cq_count++;
+	
+	}//Loop end
+	
+	if (blocking_read == CL_TRUE) 
+		if(command->event->Wait() < 0)
+			return CL_EXEC_STATUS_ERROR_FOR_EVENTS_IN_WAIT_LIST;
+
+  return CL_SUCCESS;
+}
+
+#endif
 
 CL_API_ENTRY cl_int CL_API_CALL
 #ifdef SNUCL_API_WRAP
@@ -2566,12 +2669,12 @@ __sns_clEnqueueWriteBuffer
 
 		  cmq->Enqueue(command);
 		  cq_count++;
-	  }
+	  }//TODO check probably this or the next one should be commented -- siddharth
 
 	  if (blocking_write == CL_TRUE) 
 		  if(command->event->Wait() < 0)
 			  return CL_EXEC_STATUS_ERROR_FOR_EVENTS_IN_WAIT_LIST;
-  }//End of cmq loop
+//  }//End of cmq loop
 
   return CL_SUCCESS;
 }
@@ -3409,6 +3512,7 @@ clEnqueueMigrateMemObjects
   return CL_SUCCESS;
 }
 
+#ifndef SNS
 CL_API_ENTRY cl_int CL_API_CALL
 #ifdef SNUCL_API_WRAP
 __wrap_clEnqueueNDRangeKernel
@@ -3522,10 +3626,6 @@ __sns_clEnqueueNDRangeKernel
                        cl_event *       event) CL_API_SUFFIX__VERSION_1_0 {
   if (command_queue == NULL) return CL_INVALID_COMMAND_QUEUE;
 
-  __sns_CLCommandQueue* sns_cmq = command_queue;
-
-
-  for(int i=0; i<sns_cmq.numDev; i++){
 	size_t global_work_size_scaled[3], global_work_offset_scaled[3];
 
 	  CLCommandQueue* cmq = command_queue->c_obj;
@@ -3550,14 +3650,104 @@ __sns_clEnqueueNDRangeKernel
 	  if (global_work_size == NULL) return CL_INVALID_GLOBAL_WORK_SIZE;
 
 	  for (uint i = 0; i < work_dim; ++i) {
-		  global_work_size_scaled[i] = global_work_size[i]/sns_cmq.numDev;
+		  global_work_size_scaled[i] = global_work_size[i]/(cmq->split_peers.size());
+		  if (global_work_size[i] > ULONG_MAX) return CL_INVALID_GLOBAL_WORK_SIZE;
+	  }
+
+	  if(global_work_offset) {
+		  for (uint j = 0; j < work_dim; ++j) {
+			//global_work_offset_scaled[j] = global_work_offset[j] + 
+			//	(i* global_work_size[j]/sns_cmq.numDev);
+			  if (global_work_size[j] + global_work_offset[j] > ULONG_MAX)
+				  return CL_INVALID_GLOBAL_OFFSET;
+		  }
+	  }
+
+	  if (local_work_size) {
+		  for (uint i = 0; i < work_dim; ++i) {
+			  if (global_work_size[i] % local_work_size[i] > 0) return CL_INVALID_WORK_GROUP_SIZE;
+		  }
+
+		  size_t work_group_size = 1;
+		  for (uint i = 0; i < work_dim; ++i) {
+			  work_group_size *= local_work_size[i];
+		  }
+		  if (work_group_size > cmq->device->max_work_group_size) return CL_INVALID_WORK_GROUP_SIZE;
+
+		  for (uint i = 0; i < work_dim; ++i) {
+			  if (local_work_size[i] > cmq->device->max_work_item_sizes[i]) return CL_INVALID_WORK_ITEM_SIZE;
+		  }
+	  }
+
+	  if ((event_wait_list == NULL && num_events_in_wait_list > 0) || (event_wait_list != NULL && num_events_in_wait_list == 0)) return CL_INVALID_EVENT_WAIT_LIST;
+
+	  CLCommand* command = new CLCommand(cmq, num_events_in_wait_list, event_wait_list, CL_COMMAND_NDRANGE_KERNEL);
+	  command->kernel = kernel->c_obj;
+	  command->kernel->SetCommand(command);
+	  command->program = kernel->c_obj->program;
+	  command->work_dim = work_dim;
+
+	  for (uint i = 0; i < work_dim; ++i) {
+		  command->gwo[i] = global_work_offset ? global_work_offset[i] : 0;
+		  //command->gws[i] = global_work_size[i];
+		  //command->gwo[i] = global_work_offset ? global_work_offset_scaled[i] : 0;
+		  command->gws[i] = global_work_size_scaled[i];
+		  command->lws[i] = local_work_size ? local_work_size[i] : 1;
+	  }
+	  for (uint i = work_dim; i < 3; ++i) {
+		  command->gwo[i] = 0;
+		  command->gws[i] = 1;
+		  command->lws[i] = 1;
+	  }
+	  for (uint i = 0; i < 3; ++i) {
+		  command->nwg[i] = command->gws[i] / command->lws[i];
+	  }
+
+	  command->SetKernelArgs();
+
+	  if(!command->kernel_args) return CL_INVALID_KERNEL_ARGS;
+
+	  if (event) *event = command->DisclosedToUser();
+#ifdef ALWAYS_NOTIFY_COMPLETE
+	  if (g_platform.cluster) command->DisclosedToUser();
+#endif
+
+	  cmq->Enqueue(command);
+
+          int cmq_count = 0;
+
+	for(vector<CLCommandQueue *>::iterator cq_iter = cmq->split_peers.begin(); cq_iter != cmq->split_peers.end(); cq_iter++){
+
+	  CLCommandQueue* cmq = (*cq_iter)->c_obj;
+
+	  if (!cmq->device->ContainsProgram(kernel->c_obj->program)) {
+		  return CL_INVALID_PROGRAM_EXECUTABLE;
+	  }
+
+	  if (kernel == NULL) return CL_INVALID_KERNEL;
+	  if (kernel->c_obj->program->context != cmq->context) return CL_INVALID_CONTEXT;
+
+	  for (uint i = 0; i < num_events_in_wait_list; ++i) {
+		  if (!event_wait_list[i])
+			  return CL_INVALID_EVENT_WAIT_LIST;
+
+		  if (event_wait_list[i]->c_obj->context->c_obj != cmq->context )
+			  return CL_INVALID_CONTEXT;
+	  }
+
+	  if (work_dim < 1 || work_dim > 3) return CL_INVALID_WORK_DIMENSION;
+
+	  if (global_work_size == NULL) return CL_INVALID_GLOBAL_WORK_SIZE;
+
+	  for (uint i = 0; i < work_dim; ++i) {
+		  global_work_size_scaled[i] = global_work_size[i]/(cmq->split_peers.size());
 		  if (global_work_size[i] > ULONG_MAX) return CL_INVALID_GLOBAL_WORK_SIZE;
 	  }
 
 	  if(global_work_offset) {
 		  for (uint j = 0; j < work_dim; ++j) {
 			global_work_offset_scaled[j] = global_work_offset[j] + 
-				(i* global_work_size[j]/sns_cmq.numDev);
+				(cmq_count* global_work_size[j]/(cmq->split_peers.size()));
 			  if (global_work_size[j] + global_work_offset[j] > ULONG_MAX)
 				  return CL_INVALID_GLOBAL_OFFSET;
 		  }
@@ -3596,7 +3786,7 @@ __sns_clEnqueueNDRangeKernel
 	  }
 	  for (uint i = work_dim; i < 3; ++i) {
 		  command->gwo[i] = 0;
-		  command->gws[i] = 1;
+		  command->gws[i] = 2;
 		  command->lws[i] = 1;
 	  }
 	  for (uint i = 0; i < 3; ++i) {
@@ -3613,7 +3803,8 @@ __sns_clEnqueueNDRangeKernel
 #endif
 
 	  cmq->Enqueue(command);
-  } //end of cmq loop
+	  cmq_count++;
+	}
 
   return CL_SUCCESS;
 }
