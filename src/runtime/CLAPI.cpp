@@ -43,8 +43,15 @@
 #include <Utils.h>
 #include <malloc.h>
 #include <limits.h>
+#include <assert.h>
+#include <set>
+#include <iostream>
+
+using namespace std;
 
 SNUCL_DEBUG_HEADER("CLAPI");
+
+#define SNS
 
 /* Platform API */
 CL_API_ENTRY cl_int CL_API_CALL
@@ -93,12 +100,13 @@ clGetPlatformInfo
 }
 
 /* Device APIs */
+#ifdef SNS
 CL_API_ENTRY cl_int CL_API_CALL
-#ifdef SNUCL_API_WRAP
+//#ifdef SNUCL_API_WRAP
 __wrap_clGetDeviceIDs
 #else
 clGetDeviceIDs
-#endif
+/*#endif
               (cl_platform_id   platform,
                cl_device_type   device_type, 
                cl_uint          num_entries, 
@@ -124,6 +132,69 @@ clGetDeviceIDs
       }
       num_devices_ret++;
     }
+  }
+
+  if (num_devices) {
+		*num_devices = num_devices_ret;
+		if (num_entries > 0 && num_devices_ret > num_entries) *num_devices = num_entries;
+	}
+
+  if (num_devices_ret == 0) return CL_DEVICE_NOT_FOUND;
+
+  return CL_SUCCESS;
+}*/
+#endif
+              (cl_platform_id   platform,
+               cl_device_type   device_type, 
+               cl_uint          num_entries, 
+               cl_device_id *   devices, 
+               cl_uint *        num_devices) CL_API_SUFFIX__VERSION_1_0 {
+
+  if (platform != &g_platform.st_obj) return CL_INVALID_PLATFORM;
+
+  if (device_type != CL_DEVICE_TYPE_ALL && (!(device_type & (CL_DEVICE_TYPE_DEFAULT | CL_DEVICE_TYPE_CPU | CL_DEVICE_TYPE_GPU | CL_DEVICE_TYPE_ACCELERATOR | CL_DEVICE_TYPE_CUSTOM)))) return CL_INVALID_DEVICE_TYPE;
+
+  if ((num_entries == 0 && devices != NULL) || (num_devices == NULL && devices == NULL))
+    return CL_INVALID_VALUE;
+
+  cl_uint num_devices_ret = 0;
+  
+  if (device_type == CL_DEVICE_TYPE_DEFAULT) device_type = CL_DEVICE_TYPE_GPU;
+
+#define SPLIT_FACTOR 2
+  int dev = 0;
+  for (int i = 0; i < (int) g_platform.devices.size(); ++i) {
+    if (g_platform.devices[i]->type & device_type) {
+			if (device_type == CL_DEVICE_TYPE_ALL && g_platform.devices[i]->type == CL_DEVICE_TYPE_CUSTOM) continue;
+      if (devices != NULL && num_devices_ret < num_entries) {
+        //devices[num_devices_ret] = &g_platform.devices[i]->st_obj;
+        printf( "g_platform.devices [%d]->st_obj = 0x%x\n", i, g_platform.devices[i]->st_obj);
+        printf( "&g_platform.devices [%d]->st_obj = 0x%x\n", i, &g_platform.devices[i]->st_obj);
+        CLDevice *curr_dev = (CLDevice *)&g_platform.devices[i]->st_obj;
+        int j = 0;
+        while( j<SPLIT_FACTOR-1){
+           if(dev == i){
+		dev = (dev + 1)%((int) g_platform.devices.size());
+                continue;
+           }
+           curr_dev->split_peers.push_back((CLDevice *)(&g_platform.devices[dev]->st_obj));
+	   printf("dev[%d].split_peers[%d] = 0x%x\n", i, j, curr_dev->split_peers[j]);
+           j++;
+        }
+        devices[num_devices_ret] = (_cl_device_id*)curr_dev;
+        printf("devices[%d] = 0x%x\n", num_devices_ret, devices[num_devices_ret]);
+        }
+      }
+      num_devices_ret++;
+    }
+
+  for(int i=0; i<num_devices_ret-1; i++){
+
+	  int j = 0;
+	  while( j<SPLIT_FACTOR-1){
+		  printf("dev[%d].split_peers[%d] = 0x%x\n", i, j, ((CLDevice *)devices[i])->split_peers[j]);
+		  j++;
+	  }
   }
 
   if (num_devices) {
@@ -308,12 +379,12 @@ clReleaseDevice
 //SNS_ to be changed. Constant device number at start. Get the number of devices and then use that each time to create a context
 /* Context APIs */
 CL_API_ENTRY cl_context CL_API_CALL
-#ifndef SNS
-#ifdef SNUCL_API_WRAP
+#ifdef SNS
+//#ifdef SNUCL_API_WRAP
 __wrap_clCreateContext
 #else
 clCreateContext
-#endif
+/*#endif
                (const cl_context_properties * properties,
                 cl_uint                       num_devices,
                 const cl_device_id *          devices,
@@ -354,13 +425,15 @@ clCreateContext
   return &context->st_obj;
 }
 #else
-__sns_clCreateContext
+__wrap_sns_clCreateContext
+*/
+#endif
                (const cl_context_properties * properties,
                 cl_uint                       num_devices,
                 const cl_device_id *          devices,
                 void (CL_CALLBACK *pfn_notify)(const char *, const void *, size_t, void *),
                 void *                        user_data,
-                cl_int *                      errcode_ret) CL_API_SUFFIX__VERSION_1_0 {
+                cl_int *                      errcode_ret) CL_API_SUFFIX__VERSION_1_0 {  
   cl_int err = CL_SUCCESS;
 	size_t num_properties = 0;
 
@@ -371,66 +444,76 @@ __sns_clCreateContext
   if (errcode_ret) *errcode_ret = err;
   if (err != CL_SUCCESS) return NULL;
 
-#define SPLIT_FACTOR 2
+//#define SPLIT_FACTOR 2
 
-  int split_peer_count = 0;
-  for (dev = 0; dev < num_devices; dev++){
+  /*int split_peer_count = 0;
+  cl_device_id *devices_local = new cl_device_id[num_devices];
+  for (int dev = 0; dev < num_devices; dev++){
 	CLDevice *curr_dev = (CLDevice *)devices[dev];
 	
-		vector<CLDevice *> d_iter;
-		for (d_iter = g_platform.devices.begin(); d_iter != g_platform.devices.end(); ++d_iter){
+		for (vector<CLDevice *>::iterator d_iter = g_platform.devices.begin(); d_iter != g_platform.devices.end(); ++d_iter){
 			if ((*d_iter) != curr_dev){
-				curr_dev.split_peers.push_back(*d_iter);
+				curr_dev->split_peers.push_back(*d_iter);
+				printf("#@!^&*()...  devices[%d]->split_peers.size()=%d\n", dev, ((CLDevice *)devices[dev])->split_peers.size());
 				split_peer_count++;
 				if(split_peer_count == SPLIT_FACTOR-1){
+					devices_local[dev] = (cl_device_id )curr_dev;
+					devices[dev] = (cl_device_id )curr_dev;
 					break;
 				}
 			}
 		}
-  }
-
-	//SNUCL_DevicesVerification(g_platform.devices, g_platform.devices.size(), devices, num_devices, err);
-
-	//for (uint i=0; i<num_devices; i++) {
-		//if (!devices[i]->c_obj->available) {
-  for (uint i=0; i<SPLIT_FACTOR*num_devices; i++) {
-	  if (!sns_devices[i]->c_obj->available) {
-		  err = CL_DEVICE_NOT_AVAILABLE;
-		  break;
-	  }
-  }
+  }*/
 
   if (errcode_ret) *errcode_ret = err;
   if (err != CL_SUCCESS) return NULL;
 
   assert(SPLIT_FACTOR*num_devices <= g_platform.devices.size());
+  //assert(SPLIT_FACTOR*num_devices <= g_platform.devices.size());
 
   set<CLDevice *> uniq_dev;
   for(int dev=0; dev  < num_devices; dev++){
 	
-  CLDevice *curr_dev = (CLDevice *)devices[dev]; 
-  vector<CLDevice *> split_peers = curr_dev.split_peers;
-  
-  for(vector<CLDevice *>::iterator d_iter = split_peers.begin(); d_iter != split_peers.end(); d_iter++)
-  uniq_dev.push(*d_iter);
-  }
-  }
-  CLDevice *dev_list_after_split = new CLDevice* [uniq_dev.size()];
+  	CLDevice *curr_dev = (CLDevice *)devices[dev]; 
+  	//CLDevice *curr_dev = (CLDevice *)devices_local[dev]; 
+  	//vector<CLDevice *> split_peers(curr_dev->split_peers.begin(), curr_dev->split_peers.end());
+  	//vector<CLDevice *> split_peers(curr_dev->split_peers);
+ 
+        for(int j=0; j<SPLIT_FACTOR-1; j++){
+		printf("dev[%d].split_peers[%d] = 0x%x\n",dev,j,curr_dev->split_peers[j]);
+		uniq_dev.insert(curr_dev->split_peers[j]);
+        }
+
+ 	/*for(vector<CLDevice *>::iterator d_iter = curr_dev->split_peers.begin(); d_iter != curr_dev->split_peers.end(); d_iter++){
+		printf("dev %d *d_iter = 0x%x\n", dev, *d_iter);
+  		uniq_dev.insert(*d_iter);
+	}*/
+  } 
+	 
+	//vector<CLDevice *> uniq_dev_vec(uniq_dev.begin(), uniq_dev.end());
+	//CLDevice *dev_arr = &uniq_dev_vec[0];
+ //CLDevice **dev_list_after_split = new CLDevice*[uniq_dev.size()]; //TODO is it an array of CLDevice * of that size ?
+								// Its size of array and pointer to array right ? yes
+								// then we need to change the ctor arguments for CLContext
+ cl_device_id *dev_list_after_split = new cl_device_id[uniq_dev.size()]; //TODO is it an array of CLDevice * of that size ?
+   int elem = 0;
+   for(set<CLDevice *>::iterator d_s_iter=uniq_dev.begin(); d_s_iter != uniq_dev.end(); d_s_iter++){
+	dev_list_after_split[elem++] = (cl_device_id)(*d_s_iter);
+   }
+
   //CLContext* context = new CLContext(num_devices, devices);
-  CLContext* sns_context = new CLContext(uniq_dev.size(), dev_list_after_split);
+  //CLContext* sns_context = new CLContext(uniq_dev_vec.size(), dev_arr);
+  CLContext* context = new CLContext(uniq_dev.size(), dev_list_after_split);
   err = context->SetProperties(properties);
 
   if (errcode_ret) *errcode_ret = err;
   if (err != CL_SUCCESS) {
 		delete context;
 		return NULL;
-	}
-}	// TODO check probably missed this close - added } -- siddharth
-
-  //return &context->st_obj;
-  return &sns_context->st_obj;
+	}  
+  return &context->st_obj;
+  //return &sns_context->st_obj;
 }
-#endif
 
 CL_API_ENTRY cl_context CL_API_CALL
 #ifdef SNUCL_API_WRAP
@@ -537,13 +620,13 @@ clGetContextInfo
 }
 
 /* Command Queue APIs */
-#ifndef SNS
 CL_API_ENTRY cl_command_queue CL_API_CALL
-#ifdef SNUCL_API_WRAP
+#ifdef SNS
+//#ifdef SNUCL_API_WRAP
 __wrap_clCreateCommandQueue
 #else
 clCreateCommandQueue
-#endif
+/*#endif
                     (cl_context                     context, 
                      cl_device_id                   device, 
                      cl_command_queue_properties    properties,
@@ -560,30 +643,35 @@ clCreateCommandQueue
   return &command_queue->st_obj;
 }
 #else
-CL_API_ENTRY cl_command_queue CL_API_CALL
-clCreateCommandQueue
+__wrap_sns_clCreateCommandQueue
+*/
+#endif
                     (cl_context                     context, 
                      cl_device_id                   device, 
                      cl_command_queue_properties    properties,
                      cl_int *                       errcode_ret) CL_API_SUFFIX__VERSION_1_0 {
   cl_int err = CL_SUCCESS;
 	if (context == NULL) err = CL_INVALID_CONTEXT;
-	SNUCL_DevicesVerification(context->c_obj->devices, context->c_obj->devices.size(), &device, 1, err);
+	//SNUCL_DevicesVerification(context->c_obj->devices, context->c_obj->devices.size(), &device, 1, err);
 
   if (errcode_ret) *errcode_ret = err;
   if (err != CL_SUCCESS) return NULL;
 
-  vector<CLDevice *> split_peers = ((CLDevice *)device)->split_peers;
+  //vector<CLDevice *> split_peers (((CLDevice *)device)->split_peers);
 
   CLCommandQueue* command_queue = new CLCommandQueue(context->c_obj, device->c_obj, properties);
-  for(vector<CLDevice *>::iterator d_iter = split_peers.begin(); d_iter != split_peers.end(); d_iter++){
-       command_queue.split_peers(push_back(new CLCommandQueue(context->c_obj, (*d_iter)->c_obj, properties)));
+  for(int j=0; j<SPLIT_FACTOR-1; j++){
+	command_queue->split_peers.push_back(new CLCommandQueue(context->c_obj,((_cl_device_id *)device)->c_obj, properties));
+	printf("device.split_peers[%d] = 0x%x\n", j, ((CLDevice *)device)->split_peers[j]);
   }
+
+  /*for(vector<CLDevice *>::iterator d_iter = ((CLDevice *)device)->split_peers.begin(); d_iter != ((CLDevice *)device)->split_peers.end(); d_iter++){
+       command_queue->split_peers.push_back(new CLCommandQueue(context->c_obj, ((_cl_device_id *)(*d_iter))->c_obj, properties));
+  }*/
      
   return &command_queue->st_obj;
 }
 
-#endif
 
 CL_API_ENTRY cl_int CL_API_CALL
 #ifdef SNUCL_API_WRAP
@@ -646,12 +734,13 @@ clGetCommandQueueInfo
 
 
 /* Memory Object APIs */
-#ifndef SNS
 CL_API_ENTRY cl_mem CL_API_CALL
-#ifdef SNUCL_API_WRAP
+#ifdef SNS
+//#ifdef SNUCL_API_WRAP
 __wrap_clCreateBuffer
 #else
 clCreateBuffer
+/*
 #endif
               (cl_context   context,
                cl_mem_flags flags,
@@ -674,8 +763,9 @@ clCreateBuffer
   return &mem->st_obj;
 }
 #else
-CL_API_ENTRY cl_mem CL_API_CALL
-__sns_clCreateBuffer
+__wrap_sns_clCreateBuffer
+*/
+#endif
               (cl_context   context,
                cl_mem_flags flags,
                size_t       size,
@@ -697,7 +787,6 @@ __sns_clCreateBuffer
 
   return &mem->st_obj;
 }
-#endif
 
 /* Memory Object APIs */
 CL_API_ENTRY cl_mem CL_API_CALL
@@ -2272,12 +2361,13 @@ clFinish
 //TODO:change cb -> size
 //TODO new Command -> CommandFactory
 /* Enqueued Commands APIs */
-#ifndef SNS
 CL_API_ENTRY cl_int CL_API_CALL
-#ifdef SNUCL_API_WRAP
+#ifdef SNS
+//#ifdef SNUCL_API_WRAP
 __wrap_clEnqueueReadBuffer
 #else
 clEnqueueReadBuffer
+/*
 #endif
                    (cl_command_queue    command_queue,
                     cl_mem              buffer,
@@ -2330,8 +2420,9 @@ clEnqueueReadBuffer
   return CL_SUCCESS;
 }
 #else 				//Verify adding from here siddharth
-CL_API_ENTRY cl_int CL_API_CALL
-__sns_clEnqueueReadBuffer
+__wrap_sns_clEnqueueReadBuffer
+*/
+#endif
                    (cl_command_queue    command_queue,
                     cl_mem              buffer,
                     cl_bool             blocking_read,
@@ -2381,7 +2472,7 @@ __sns_clEnqueueReadBuffer
 
   	for(vector<CLCommandQueue *>::iterator cq_iter = cmq->split_peers.begin(); cq_iter != cmq->split_peers.end(); cq_iter++){
 	
-		CLCommandQueue *cmq = (*cq_iter)->c_obj;
+		CLCommandQueue *cmq = ((_cl_command_queue *)*cq_iter)->c_obj;
 
 		if (cmq->context != buffer->c_obj->context) return CL_INVALID_CONTEXT;
 
@@ -2429,7 +2520,6 @@ __sns_clEnqueueReadBuffer
   return CL_SUCCESS;
 }
 
-#endif
 
 CL_API_ENTRY cl_int CL_API_CALL
 #ifdef SNUCL_API_WRAP
@@ -2523,12 +2613,13 @@ clEnqueueReadBufferRect
   return CL_SUCCESS;
 }
 
-#ifndef SNS
 CL_API_ENTRY cl_int CL_API_CALL
-#ifdef SNUCL_API_WRAP
+#ifdef SNS
+//#ifdef SNUCL_API_WRAP
 __wrap_clEnqueueWriteBuffer
 #else
 clEnqueueWriteBuffer
+/*
 #endif
                     (cl_command_queue   command_queue, 
                      cl_mem             buffer, 
@@ -2580,8 +2671,9 @@ clEnqueueWriteBuffer
   return CL_SUCCESS;
 }
 #else
-CL_API_ENTRY cl_int CL_API_CALL
-__sns_clEnqueueWriteBuffer
+__wrap_sns_clEnqueueWriteBuffer
+*/
+#endif
                     (cl_command_queue   command_queue, 
                      cl_mem             buffer, 
                      cl_bool            blocking_write, 
@@ -2631,7 +2723,7 @@ __sns_clEnqueueWriteBuffer
           int cq_count = 0;
 
 	  for(vector<CLCommandQueue *>::iterator cq_iter = cmq->split_peers.begin(); cq_iter != cmq->split_peers.end(); cq_iter++){
-		  CLCommandQueue* cmq = (*cq_iter)->c_obj;
+		  CLCommandQueue* cmq = ((_cl_command_queue *)*cq_iter)->c_obj;
 		  if (buffer == NULL) return CL_INVALID_MEM_OBJECT;
 
 		  if (cmq->context != buffer->c_obj->context) return CL_INVALID_CONTEXT;
@@ -2678,7 +2770,6 @@ __sns_clEnqueueWriteBuffer
 
   return CL_SUCCESS;
 }
-#endif
 
 CL_API_ENTRY cl_int CL_API_CALL
 #ifdef SNUCL_API_WRAP
@@ -3512,13 +3603,13 @@ clEnqueueMigrateMemObjects
   return CL_SUCCESS;
 }
 
-#ifndef SNS
 CL_API_ENTRY cl_int CL_API_CALL
-#ifdef SNUCL_API_WRAP
-__wrap_clEnqueueNDRangeKernel
+#ifdef SNS
+//#ifdef SNUCL_API_WRAP
+	__wrap_clEnqueueNDRangeKernel
 #else
 clEnqueueNDRangeKernel
-#endif
+/*#endif
                       (cl_command_queue command_queue,
                        cl_kernel        kernel,
                        cl_uint          work_dim,
@@ -3613,8 +3704,10 @@ clEnqueueNDRangeKernel
   return CL_SUCCESS;
 }
 #else
-CL_API_ENTRY cl_int CL_API_CALL
-__sns_clEnqueueNDRangeKernel
+
+__wrap_clEnqueueNDRangeKernel
+*/
+#endif
                       (cl_command_queue command_queue,
                        cl_kernel        kernel,
                        cl_uint          work_dim,
@@ -3718,7 +3811,7 @@ __sns_clEnqueueNDRangeKernel
 
 	for(vector<CLCommandQueue *>::iterator cq_iter = cmq->split_peers.begin(); cq_iter != cmq->split_peers.end(); cq_iter++){
 
-	  CLCommandQueue* cmq = (*cq_iter)->c_obj;
+	  CLCommandQueue* cmq = ((_cl_command_queue *)*cq_iter)->c_obj;
 
 	  if (!cmq->device->ContainsProgram(kernel->c_obj->program)) {
 		  return CL_INVALID_PROGRAM_EXECUTABLE;
@@ -3808,7 +3901,6 @@ __sns_clEnqueueNDRangeKernel
 
   return CL_SUCCESS;
 }
-#endif
 
 CL_API_ENTRY cl_int CL_API_CALL
 #ifdef SNUCL_API_WRAP
