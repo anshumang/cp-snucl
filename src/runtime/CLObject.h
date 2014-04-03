@@ -406,7 +406,8 @@ public:
   size_t                        cnt_cmd_s; 
 
 //SNS
-  vector<CLDevice*> split_peers;
+  //vector<CLDevice*> split_peers;
+  vector<_cl_device_id *> split_peers;
 };
 
 class CLContext : public CLObject {

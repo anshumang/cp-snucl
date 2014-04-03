@@ -25,7 +25,7 @@ else
 CC				:= g++
 endif
 
-CFLAGS		:= -O3 
+CFLAGS		:= -O3 -g
 INCLUDES	:= -I$(SNUCLROOT)/inc -I$(RTDIR) -I.
 LINK			:= -shared -fPIC
 

@@ -168,32 +168,36 @@ clGetDeviceIDs
 			if (device_type == CL_DEVICE_TYPE_ALL && g_platform.devices[i]->type == CL_DEVICE_TYPE_CUSTOM) continue;
       if (devices != NULL && num_devices_ret < num_entries) {
         //devices[num_devices_ret] = &g_platform.devices[i]->st_obj;
-        printf( "g_platform.devices [%d]->st_obj = 0x%x\n", i, g_platform.devices[i]->st_obj);
-        printf( "&g_platform.devices [%d]->st_obj = 0x%x\n", i, &g_platform.devices[i]->st_obj);
-        CLDevice *curr_dev = (CLDevice *)&g_platform.devices[i]->st_obj;
+        printf( "%d : g_platform.devices [%d]->st_obj = 0x%x\n", __LINE__, i, g_platform.devices[i]->st_obj);
+        printf( "%d : &g_platform.devices [%d]->st_obj = 0x%x\n", __LINE__, i, &g_platform.devices[i]->st_obj);
+        devices[num_devices_ret] = &g_platform.devices[i]->st_obj;
+
         int j = 0;
         while( j<SPLIT_FACTOR-1){
            if(dev == i){
 		dev = (dev + 1)%((int) g_platform.devices.size());
                 continue;
            }
-           curr_dev->split_peers.push_back((CLDevice *)(&g_platform.devices[dev]->st_obj));
-	   printf("dev[%d].split_peers[%d] = 0x%x\n", i, j, curr_dev->split_peers[j]);
+	   printf("%d : g_platform.devices[%d]->st_obj = 0x%x\n", __LINE__, dev, g_platform.devices[dev]->st_obj);
+	   printf("%d : &g_platform.devices[%d]->st_obj = 0x%x\n", __LINE__, dev, &g_platform.devices[dev]->st_obj);
+           CLDevice **curr_dev_ptr = (CLDevice **)(devices[num_devices_ret]);
+	   printf("%d : curr_dev_ptr = 0x%x\n", __LINE__, curr_dev_ptr);
+	   printf("%d : *curr_dev_ptr = 0x%x\n", __LINE__, *curr_dev_ptr);
+	   (*curr_dev_ptr)->split_peers.push_back(&g_platform.devices[dev]->st_obj);
            j++;
         }
-        devices[num_devices_ret] = (_cl_device_id*)curr_dev;
-        printf("devices[%d] = 0x%x\n", num_devices_ret, devices[num_devices_ret]);
+
+	num_devices_ret++;
         }
       }
-      num_devices_ret++;
     }
 
   for(int i=0; i<num_devices_ret-1; i++){
-
-	  int j = 0;
-	  while( j<SPLIT_FACTOR-1){
-		  printf("dev[%d].split_peers[%d] = 0x%x\n", i, j, ((CLDevice *)devices[i])->split_peers[j]);
-		  j++;
+         printf("%d : devices[%d] = 0x%x\n", __LINE__, i, devices[i]);
+	 int j = 0;
+	 while( j<SPLIT_FACTOR-1){
+		 printf("%d : devices[%d].split_peers[%d] = 0x%x\n", __LINE__, i, j, (*((CLDevice **)devices[i]))->split_peers[j]);
+		 j++;
 	  }
   }
 
@@ -444,66 +448,40 @@ __wrap_sns_clCreateContext
   if (errcode_ret) *errcode_ret = err;
   if (err != CL_SUCCESS) return NULL;
 
-//#define SPLIT_FACTOR 2
-
-  /*int split_peer_count = 0;
-  cl_device_id *devices_local = new cl_device_id[num_devices];
-  for (int dev = 0; dev < num_devices; dev++){
-	CLDevice *curr_dev = (CLDevice *)devices[dev];
-	
-		for (vector<CLDevice *>::iterator d_iter = g_platform.devices.begin(); d_iter != g_platform.devices.end(); ++d_iter){
-			if ((*d_iter) != curr_dev){
-				curr_dev->split_peers.push_back(*d_iter);
-				printf("#@!^&*()...  devices[%d]->split_peers.size()=%d\n", dev, ((CLDevice *)devices[dev])->split_peers.size());
-				split_peer_count++;
-				if(split_peer_count == SPLIT_FACTOR-1){
-					devices_local[dev] = (cl_device_id )curr_dev;
-					devices[dev] = (cl_device_id )curr_dev;
-					break;
-				}
-			}
-		}
-  }*/
 
   if (errcode_ret) *errcode_ret = err;
   if (err != CL_SUCCESS) return NULL;
 
-  assert(SPLIT_FACTOR*num_devices <= g_platform.devices.size());
-  //assert(SPLIT_FACTOR*num_devices <= g_platform.devices.size());
+  //assert(num_devices <= g_platform.devices.size());
+  assert(SPLIT_FACTOR - 1 + num_devices <= g_platform.devices.size());
 
-  set<CLDevice *> uniq_dev;
-  for(int dev=0; dev  < num_devices; dev++){
-	
-  	CLDevice *curr_dev = (CLDevice *)devices[dev]; 
-  	//CLDevice *curr_dev = (CLDevice *)devices_local[dev]; 
-  	//vector<CLDevice *> split_peers(curr_dev->split_peers.begin(), curr_dev->split_peers.end());
-  	//vector<CLDevice *> split_peers(curr_dev->split_peers);
+  set<_cl_device_id *> device_set;
+  for(int i=0; i  < num_devices; i++){
+        printf("%d : devices[%d] = 0x%x\n", __LINE__, i, devices[i]);
  
+        device_set.insert(devices[i]);
         for(int j=0; j<SPLIT_FACTOR-1; j++){
-		printf("dev[%d].split_peers[%d] = 0x%x\n",dev,j,curr_dev->split_peers[j]);
-		uniq_dev.insert(curr_dev->split_peers[j]);
+		printf("%d : devices[%d].split_peers[%d] = 0x%x\n",__LINE__, i,j,(*((CLDevice **)devices[i]))->split_peers[j]);
+		device_set.insert((*((CLDevice **)devices[i]))->split_peers[j]);
         }
 
- 	/*for(vector<CLDevice *>::iterator d_iter = curr_dev->split_peers.begin(); d_iter != curr_dev->split_peers.end(); d_iter++){
-		printf("dev %d *d_iter = 0x%x\n", dev, *d_iter);
-  		uniq_dev.insert(*d_iter);
-	}*/
   } 
 	 
-	//vector<CLDevice *> uniq_dev_vec(uniq_dev.begin(), uniq_dev.end());
-	//CLDevice *dev_arr = &uniq_dev_vec[0];
- //CLDevice **dev_list_after_split = new CLDevice*[uniq_dev.size()]; //TODO is it an array of CLDevice * of that size ?
-								// Its size of array and pointer to array right ? yes
-								// then we need to change the ctor arguments for CLContext
- cl_device_id *dev_list_after_split = new cl_device_id[uniq_dev.size()]; //TODO is it an array of CLDevice * of that size ?
+   int device_set_size = device_set.size();
+   printf("%d : device_set_size = %d\n", __LINE__, device_set.size());
+   _cl_device_id **new_devices = new _cl_device_id*[device_set_size];
    int elem = 0;
-   for(set<CLDevice *>::iterator d_s_iter=uniq_dev.begin(); d_s_iter != uniq_dev.end(); d_s_iter++){
-	dev_list_after_split[elem++] = (cl_device_id)(*d_s_iter);
+   for(set<_cl_device_id *>::iterator d_s_iter=device_set.begin(); d_s_iter != device_set.end(); d_s_iter++){
+	printf("%d : device_set[%d] = 0x%x\n", __LINE__, elem, (*d_s_iter));
+	printf("%d : device_set[%d]->c_obj = 0x%x\n", __LINE__, elem, (*d_s_iter)->c_obj);
+	new_devices[elem] = (*d_s_iter);
+	printf("%d : new_devices[%d] = 0x%x\n", __LINE__, elem, new_devices[elem]);
+	printf("%d : new_devices[%d]->c_obj = 0x%x\n", __LINE__, elem, new_devices[elem]->c_obj);
+	elem++;
    }
 
   //CLContext* context = new CLContext(num_devices, devices);
-  //CLContext* sns_context = new CLContext(uniq_dev_vec.size(), dev_arr);
-  CLContext* context = new CLContext(uniq_dev.size(), dev_list_after_split);
+  CLContext* context = new CLContext(device_set_size, new_devices);
   err = context->SetProperties(properties);
 
   if (errcode_ret) *errcode_ret = err;
@@ -511,6 +489,11 @@ __wrap_sns_clCreateContext
 		delete context;
 		return NULL;
 	}  
+
+  for(int i=0; i<device_set_size; i++){
+
+	printf("%d : context->devices[%d] = 0x%x\n",__LINE__, i, context->devices[i]);
+  }
   return &context->st_obj;
   //return &sns_context->st_obj;
 }
@@ -662,7 +645,7 @@ __wrap_sns_clCreateCommandQueue
   CLCommandQueue* command_queue = new CLCommandQueue(context->c_obj, device->c_obj, properties);
   for(int j=0; j<SPLIT_FACTOR-1; j++){
 	command_queue->split_peers.push_back(new CLCommandQueue(context->c_obj,((_cl_device_id *)device)->c_obj, properties));
-	printf("device.split_peers[%d] = 0x%x\n", j, ((CLDevice *)device)->split_peers[j]);
+	printf("%d : device.split_peers[%d] = 0x%x\n", __LINE__, j, ((CLDevice *)device)->split_peers[j]);
   }
 
   /*for(vector<CLDevice *>::iterator d_iter = ((CLDevice *)device)->split_peers.begin(); d_iter != ((CLDevice *)device)->split_peers.end(); d_iter++){
@@ -1252,8 +1235,10 @@ clCreateProgramWithSource
   SNUCL_CopyStringsToBuf(buf, count, strings, lengths);
   CLProgram* program = new CLProgram(context->c_obj, NULL, 0);
 
-	for (int i=0; i<program->devices.size(); i++)
+	for (int i=0; i<program->devices.size(); i++){
+		//printf("%d i = %d\n", __LINE__, i);
 		program->SetSrc(program->devices[i], buf);
+	}
   free(buf);
 
   return &program->st_obj;
@@ -1399,7 +1384,7 @@ clBuildProgram
 	vector<CLDevice*>* devices = &p->context->devices;
 	cl_int err = CL_SUCCESS;
 
-	SNUCL_DevicesVerification(*devices, devices->size(), device_list, num_devices, err);
+	//SNUCL_DevicesVerification(*devices, devices->size(), device_list, num_devices, err);
 	if (err != CL_SUCCESS) return err;
 
 	p->CheckOptions(options, &err);
@@ -1407,13 +1392,20 @@ clBuildProgram
 
 	if (device_list) {
 		for (uint i = 0; i < num_devices; i++) {
+			printf("%d : p->fromBinary[device_list[%d]->c_obj] = %x\n", __LINE__, i, p->fromBinary[device_list[i]->c_obj]);
+			printf("%d : p->fromSource[device_list[%d]->c_obj] = %x\n", __LINE__, i, p->fromSource[device_list[i]->c_obj]);
 			if (p->fromBinary[device_list[i]->c_obj])  {
-				if (p->bins[device_list[i]->c_obj]->binary == NULL) return CL_INVALID_BINARY;
+				if (p->bins[device_list[i]->c_obj]->binary == NULL) {
+			printf("CL_INVALID_BINARY = %d\n", CL_INVALID_BINARY);
+			return CL_INVALID_BINARY;
 			}
-			else if (p->fromSource[device_list[i]->c_obj]) {
-				if (device_list[i]->c_obj->compiler_available == CL_FALSE) return CL_COMPILER_NOT_AVAILABLE;
+			}else if (p->fromSource[device_list[i]->c_obj]) {
+				if (device_list[i]->c_obj->compiler_available == CL_FALSE){
+			printf("CL_COMPILER_NOT_AVAILABLE = %d\n", CL_COMPILER_NOT_AVAILABLE);
+			 return CL_COMPILER_NOT_AVAILABLE;
 			}
-			else {
+			}else {	//it repeats till the list is empty and then returns. I guess this is the problem
+			printf("CL_INVALID_OPERATION= %d\n",CL_INVALID_OPERATION);
 				return CL_INVALID_OPERATION;
 			}
 
@@ -1423,8 +1415,7 @@ clBuildProgram
 		for (vector<CLDevice*>::iterator it = devices->begin(); it != devices->end(); ++it) {
 			if (p->fromBinary[(*it)]) {
 				if (p->bins[(*it)]->binary == NULL) return CL_INVALID_BINARY;
-			}
-			else if (p->fromSource[(*it)]) {
+				}else if (p->fromSource[(*it)]) {
 				if ((*it)->compiler_available == CL_FALSE) return CL_COMPILER_NOT_AVAILABLE;
 			}
 			else {
