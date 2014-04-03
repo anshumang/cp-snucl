@@ -30,6 +30,7 @@ int main(int argc, char** argv)
 
   cl_uint num_dev = 1;
   err = clGetDeviceIDs(platform, DEV_TYPE, num_dev, &device, &num_dev);
+  printf("clGetDeviceIDs : device = 0x%x\n", device);
   if (err != CL_SUCCESS) { printf("[%s:%d] ERR[%d]\n", __FILE__, __LINE__, err); exit(EXIT_FAILURE); }
 
   if (num_dev < 1) exit(EXIT_FAILURE);
@@ -76,10 +77,13 @@ int main(int argc, char** argv)
   err = clSetKernelArg(kernel, 2, sizeof(cl_int), (void*) &offset);
   if (err != CL_SUCCESS) { printf("[%s:%d] ERR[%d]", __FILE__, __LINE__, err); exit(EXIT_FAILURE); }
 
-  err = clEnqueueNDRangeKernel(command_queue, kernel, 1, NULL, &global, &local, 0, NULL, NULL);
-  if (err != CL_SUCCESS) { printf("[%s:%d] ERR[%d]", __FILE__, __LINE__, err); exit(EXIT_FAILURE); }
+  //err = clEnqueueNDRangeKernel(command_queue, kernel, 1, NULL, &global, &local, 0, NULL, NULL);
+  //if (err != CL_SUCCESS) { printf("[%s:%d] ERR[%d]", __FILE__, __LINE__, err); exit(EXIT_FAILURE); }
 
-  err = clEnqueueReadBuffer(command_queue, buffer_dst, CL_TRUE, 0, SIZE * sizeof(int), host_dst, 0, NULL, NULL);
+  //err = clEnqueueReadBuffer(command_queue, buffer_dst, CL_TRUE, 0, SIZE * sizeof(int), host_dst, 0, NULL, NULL);
+  //if (err != CL_SUCCESS) { printf("[%s:%d] ERR[%d]", __FILE__, __LINE__, err); exit(EXIT_FAILURE); }
+
+  err = clEnqueueReadBuffer(command_queue, buffer_src, CL_TRUE, 0, SIZE * sizeof(int), host_dst, 0, NULL, NULL);
   if (err != CL_SUCCESS) { printf("[%s:%d] ERR[%d]", __FILE__, __LINE__, err); exit(EXIT_FAILURE); }
 
   for (int i = 0; i < SIZE; i++) printf("[%2d] %d\n", i, host_dst[i]);
