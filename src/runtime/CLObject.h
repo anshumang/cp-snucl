@@ -461,7 +461,8 @@ public:
 
   CLEvent*                    last_event;
 //SNS
-  vector<CLCommandQueue *> split_peers;
+  //vector<CLCommandQueue *> split_peers;
+  vector<_cl_command_queue *> split_peers;
 };
 
 class CLCommand : public CLObject {

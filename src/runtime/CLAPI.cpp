@@ -640,18 +640,17 @@ __wrap_sns_clCreateCommandQueue
   if (errcode_ret) *errcode_ret = err;
   if (err != CL_SUCCESS) return NULL;
 
-  //vector<CLDevice *> split_peers (((CLDevice *)device)->split_peers);
-
   CLCommandQueue* command_queue = new CLCommandQueue(context->c_obj, device->c_obj, properties);
+  printf("%d : command_queue->st_obj = 0x%x\n", __LINE__, command_queue->st_obj);
+  printf("%d : &command_queue->st_obj = 0x%x\n", __LINE__, &command_queue->st_obj);
   for(int j=0; j<SPLIT_FACTOR-1; j++){
-	command_queue->split_peers.push_back(new CLCommandQueue(context->c_obj,((_cl_device_id *)device)->c_obj, properties));
-	printf("%d : device.split_peers[%d] = 0x%x\n", __LINE__, j, ((CLDevice *)device)->split_peers[j]);
+	printf("%d : device.split_peers[%d]->c_obj = 0x%x\n", __LINE__, j, (*((CLDevice **)device))->split_peers[j]->c_obj);
+        CLCommandQueue* peer_c_q = new CLCommandQueue(context->c_obj,(*((CLDevice **)device))->split_peers[j]->c_obj, properties);
+	printf("%d : peer_c_q->st_obj = 0x%x\n", __LINE__, peer_c_q->st_obj);
+	printf("%d : &peer_c_q->st_obj = 0x%x\n", __LINE__, &peer_c_q->st_obj);
+	command_queue->split_peers.push_back(&peer_c_q->st_obj);
   }
 
-  /*for(vector<CLDevice *>::iterator d_iter = ((CLDevice *)device)->split_peers.begin(); d_iter != ((CLDevice *)device)->split_peers.end(); d_iter++){
-       command_queue->split_peers.push_back(new CLCommandQueue(context->c_obj, ((_cl_device_id *)(*d_iter))->c_obj, properties));
-  }*/
-     
   return &command_queue->st_obj;
 }
 
@@ -1389,8 +1388,9 @@ clBuildProgram
 
 	p->CheckOptions(options, &err);
 	if (err != CL_SUCCESS) return err;
-
-	if (device_list) {
+         
+	//if (device_list) {
+	if (0) {
 		for (uint i = 0; i < num_devices; i++) {
 			printf("%d : p->fromBinary[device_list[%d]->c_obj] = %x\n", __LINE__, i, p->fromBinary[device_list[i]->c_obj]);
 			printf("%d : p->fromSource[device_list[%d]->c_obj] = %x\n", __LINE__, i, p->fromSource[device_list[i]->c_obj]);
@@ -1431,7 +1431,8 @@ clBuildProgram
 		p->buildCallbackStack.push_back(pc);
 	}
 
-  if (device_list) {
+  //if (device_list) {
+  if (0) {
     for (uint i = 0; i < num_devices; ++i) {
 			if (p->fromBinary[device_list[i]->c_obj] && p->buildStatus.count(device_list[i]->c_obj) > 0) {
 				if (p->buildStatus[device_list[i]->c_obj] == CL_BUILD_SUCCESS) continue;
@@ -2446,12 +2447,15 @@ __wrap_sns_clEnqueueReadBuffer
 	if (b->flags & (CL_MEM_HOST_WRITE_ONLY | CL_MEM_HOST_NO_ACCESS))
 		return CL_INVALID_OPERATION;
 
+        int peer_set_size = (*((CLCommandQueue **)command_queue))->split_peers.size() + 1;
+        
   	CLCommand* command = new CLCommand(cmq, num_events_in_wait_list, event_wait_list, CL_COMMAND_READ_BUFFER);
   	command->mem_src = buffer->c_obj;
 	command->mem_src->SetCommand(command);
   	command->off_src = offset;
   	//command->cb = cb;
-  	command->cb = cb/(cmq->split_peers.size() + 1);
+  	//command->cb = cb/(cmq->split_peers.size() + 1);
+  	command->cb = cb/peer_set_size;
   	command->ptr = (void *) ptr;
 
   	if (event) *event = command->DisclosedToUser();
@@ -2461,10 +2465,9 @@ __wrap_sns_clEnqueueReadBuffer
 
 	int cq_count = 0;
 
-  	for(vector<CLCommandQueue *>::iterator cq_iter = cmq->split_peers.begin(); cq_iter != cmq->split_peers.end(); cq_iter++){
-	
-		CLCommandQueue *cmq = ((_cl_command_queue *)*cq_iter)->c_obj;
+	for(int i=0; i<SPLIT_FACTOR-1; i++){
 
+		CLCommandQueue *cmq = (*((CLCommandQueue **)command_queue))->split_peers[i]->c_obj;
 		if (cmq->context != buffer->c_obj->context) return CL_INVALID_CONTEXT;
 
   		for (uint i = 0; i < num_events_in_wait_list; ++i) {
@@ -2475,7 +2478,7 @@ __wrap_sns_clEnqueueReadBuffer
 				return CL_INVALID_CONTEXT;
 		}
 
-		size_t curr_offset = offset + cb/(cmq->split_peers.size()+ 1) * cq_count; 
+		size_t curr_offset = offset + cb/peer_set_size * cq_count; 
 
 		CLMem* b = buffer->c_obj;
 //		if (cb + offset > b->size || offset > b->size || ptr == NULL) return CL_INVALID_VALUE;
@@ -2493,7 +2496,7 @@ __wrap_sns_clEnqueueReadBuffer
   		//command->off_src = offset;
   		command->off_src = curr_offset;
   		//command->cb = cb;
-  		command->cb = cb/(cmq->split_peers.size() + 1);
+  		command->cb = cb/peer_set_size;
   		command->ptr = (void *) ptr;
 
   		if (event) *event = command->DisclosedToUser();
@@ -2697,13 +2700,14 @@ __wrap_sns_clEnqueueWriteBuffer
 
 	  if (b->flags & (CL_MEM_HOST_READ_ONLY | CL_MEM_HOST_NO_ACCESS))
 		  return CL_INVALID_OPERATION;
+	  int peer_set_size = (*((CLCommandQueue **)command_queue))->split_peers.size() + 1;
 
 	  CLCommand* command = new CLCommand(cmq, num_events_in_wait_list, event_wait_list, CL_COMMAND_WRITE_BUFFER);
 	  command->mem_dst = buffer->c_obj;
 	  command->mem_dst->SetCommand(command);
 	  command->off_dst = offset;
 	  //command->cb = cb;
-	  command->cb = cb/(cmq->split_peers.size() + 1);
+	  command->cb = cb/peer_set_size;
 	  command->ptr = (void*) ptr;
 
 	  if (event) *event = command->DisclosedToUser();
@@ -2712,9 +2716,10 @@ __wrap_sns_clEnqueueWriteBuffer
 	  cmq->Enqueue(command);
 
           int cq_count = 0;
+	
+	  for(int i=0; i<SPLIT_FACTOR-1; i++){
 
-	  for(vector<CLCommandQueue *>::iterator cq_iter = cmq->split_peers.begin(); cq_iter != cmq->split_peers.end(); cq_iter++){
-		  CLCommandQueue* cmq = ((_cl_command_queue *)*cq_iter)->c_obj;
+		  CLCommandQueue *cmq = (*((CLCommandQueue **)command_queue))->split_peers[i]->c_obj;
 		  if (buffer == NULL) return CL_INVALID_MEM_OBJECT;
 
 		  if (cmq->context != buffer->c_obj->context) return CL_INVALID_CONTEXT;
@@ -2727,7 +2732,7 @@ __wrap_sns_clEnqueueWriteBuffer
 				  return CL_INVALID_CONTEXT;
 		  }
 
-		  size_t curr_offset = offset + cb/(cmq->split_peers.size() + 1)*cq_count; 
+		  size_t curr_offset = offset + cb/peer_set_size *cq_count; 
 
 		  CLMem* b = buffer->c_obj;
 		  //if (cb + offset > b->size || offset > b->size || ptr == NULL) return CL_INVALID_VALUE;
@@ -2744,7 +2749,7 @@ __wrap_sns_clEnqueueWriteBuffer
 		  //command->off_dst = offset;
 		  command->off_dst = curr_offset;
 		  //command->cb = cb;
-		  command->cb = cb/(cmq->split_peers.size() + 1);
+		  command->cb = cb/peer_set_size;
 		  command->ptr = (void*) ptr;
 
 		  if (event) *event = command->DisclosedToUser();
@@ -2752,12 +2757,11 @@ __wrap_sns_clEnqueueWriteBuffer
 
 		  cmq->Enqueue(command);
 		  cq_count++;
-	  }//TODO check probably this or the next one should be commented -- siddharth
+	  }//Loop end
 
 	  if (blocking_write == CL_TRUE) 
 		  if(command->event->Wait() < 0)
 			  return CL_EXEC_STATUS_ERROR_FOR_EVENTS_IN_WAIT_LIST;
-//  }//End of cmq loop
 
   return CL_SUCCESS;
 }
@@ -3733,15 +3737,15 @@ __wrap_clEnqueueNDRangeKernel
 
 	  if (global_work_size == NULL) return CL_INVALID_GLOBAL_WORK_SIZE;
 
+	  int peer_set_size = (*((CLCommandQueue **)command_queue))->split_peers.size() + 1;
+
 	  for (uint i = 0; i < work_dim; ++i) {
-		  global_work_size_scaled[i] = global_work_size[i]/(cmq->split_peers.size());
+		  global_work_size_scaled[i] = global_work_size[i]/peer_set_size;
 		  if (global_work_size[i] > ULONG_MAX) return CL_INVALID_GLOBAL_WORK_SIZE;
 	  }
 
 	  if(global_work_offset) {
 		  for (uint j = 0; j < work_dim; ++j) {
-			//global_work_offset_scaled[j] = global_work_offset[j] + 
-			//	(i* global_work_size[j]/sns_cmq.numDev);
 			  if (global_work_size[j] + global_work_offset[j] > ULONG_MAX)
 				  return CL_INVALID_GLOBAL_OFFSET;
 		  }
@@ -3800,9 +3804,9 @@ __wrap_clEnqueueNDRangeKernel
 
           int cmq_count = 0;
 
-	for(vector<CLCommandQueue *>::iterator cq_iter = cmq->split_peers.begin(); cq_iter != cmq->split_peers.end(); cq_iter++){
+	  for(int i=0; i<SPLIT_FACTOR-1; i++){
 
-	  CLCommandQueue* cmq = ((_cl_command_queue *)*cq_iter)->c_obj;
+	  CLCommandQueue *cmq = (*((CLCommandQueue **)command_queue))->split_peers[i]->c_obj;	
 
 	  if (!cmq->device->ContainsProgram(kernel->c_obj->program)) {
 		  return CL_INVALID_PROGRAM_EXECUTABLE;
@@ -3824,14 +3828,14 @@ __wrap_clEnqueueNDRangeKernel
 	  if (global_work_size == NULL) return CL_INVALID_GLOBAL_WORK_SIZE;
 
 	  for (uint i = 0; i < work_dim; ++i) {
-		  global_work_size_scaled[i] = global_work_size[i]/(cmq->split_peers.size());
+		  global_work_size_scaled[i] = global_work_size[i]/peer_set_size;
 		  if (global_work_size[i] > ULONG_MAX) return CL_INVALID_GLOBAL_WORK_SIZE;
 	  }
 
 	  if(global_work_offset) {
 		  for (uint j = 0; j < work_dim; ++j) {
 			global_work_offset_scaled[j] = global_work_offset[j] + 
-				(cmq_count* global_work_size[j]/(cmq->split_peers.size()));
+				(cmq_count* global_work_size[j]/peer_set_size);
 			  if (global_work_size[j] + global_work_offset[j] > ULONG_MAX)
 				  return CL_INVALID_GLOBAL_OFFSET;
 		  }
