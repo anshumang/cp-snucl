@@ -2248,6 +2248,7 @@ clEnqueueReadBuffer
   if (command_queue == NULL) return CL_INVALID_COMMAND_QUEUE;
 
   	CLCommandQueue* cmq = command_queue->c_obj;
+        //fprintf(stderr, "%s(%d) : cmq=%p\n", "clEnqueueReadBuffer", __LINE__, cmq);
 	//fprintf(stderr, "%s(%d) : command_queue->dev = %p\n", "clEnqueueReadBuffer", __LINE__, static_cast<LegacyCLDevice *>(cmq->device)->dev);
   	if (buffer == NULL) return CL_INVALID_MEM_OBJECT;
 
@@ -2464,6 +2465,7 @@ clEnqueueWriteBuffer
 
   
 	  CLCommandQueue* cmq = command_queue->c_obj;
+          fprintf(stderr, "%s(%d) : cmq=%p\n", "clEnqueueWriteBuffer", __LINE__, cmq);
 	  //fprintf(stderr, "%s(%d) : command_queue->dev = %p\n", "clEnqueueWriteBuffer", __LINE__, static_cast<LegacyCLDevice *>(cmq->device)->dev);
 	  if (buffer == NULL) return CL_INVALID_MEM_OBJECT;
 
@@ -3507,8 +3509,7 @@ clEnqueueNDRangeKernel
 }
 #else
 
-__wrap_clEnqueueNDRangeKernel
-*/
+__wrap_clEnqueueNDRangeKernel*/
 #endif
                       (cl_command_queue command_queue,
                        cl_kernel        kernel,
@@ -3524,6 +3525,7 @@ __wrap_clEnqueueNDRangeKernel
 	size_t global_work_size_scaled[3], global_work_offset_scaled[3];
 
 	  CLCommandQueue* cmq = command_queue->c_obj;
+	  //fprintf(stderr, "%s(%d) : cmq=%p\n", "clEnqueueNDRangeKernel", __LINE__, cmq);
 
 	  if (!cmq->device->ContainsProgram(kernel->c_obj->program)) {
 		  return CL_INVALID_PROGRAM_EXECUTABLE;
@@ -3587,6 +3589,7 @@ __wrap_clEnqueueNDRangeKernel
 		  //command->gws[i] = global_work_size[i];
 		  //command->gwo[i] = global_work_offset ? global_work_offset_scaled[i] : 0;
 		  command->gws[i] = global_work_size_scaled[i];
+		  fprintf(stderr, "%d %s(%d) : command->gws[%d]=%d, command->gwo[%d]=%d, device = %p\n", getpid(), "clEnqueueNDRangeKernel", __LINE__, i, command->gws[i], i, command->gwo[i], cmq->device);
 		  command->lws[i] = local_work_size ? local_work_size[i] : 1;
 	  }
 	  for (uint i = work_dim; i < 3; ++i) {
@@ -3606,8 +3609,8 @@ __wrap_clEnqueueNDRangeKernel
 #ifdef ALWAYS_NOTIFY_COMPLETE
 	  if (g_platform.cluster) command->DisclosedToUser();
 #endif
-	  printf("EnqueueNDRangeKernel %d\n", __LINE__);
-	  //cmq->Enqueue(command);
+	  cmq->Enqueue(command);
+	  fprintf(stderr, "%d %s(%d) : enqueued....\n", getpid(), "clEnqueueNDRangeKernel", __LINE__);
 
           int cmq_count = 1;
 
@@ -3646,6 +3649,13 @@ __wrap_clEnqueueNDRangeKernel
 				  if (global_work_size[j] + global_work_offset[j] > ULONG_MAX)
 					  return CL_INVALID_GLOBAL_OFFSET;
 			  }
+		  } else {
+			  for (uint j = 0; j < work_dim; ++j) {
+				  global_work_offset_scaled[j] =  
+					  (cmq_count* global_work_size[j]/peer_set_size);
+				  if (global_work_size[j] + global_work_offset[j] > ULONG_MAX)
+					  return CL_INVALID_GLOBAL_OFFSET;
+			  }
 		  }
 
 		  if (local_work_size) {
@@ -3674,14 +3684,15 @@ __wrap_clEnqueueNDRangeKernel
 
 		  for (uint i = 0; i < work_dim; ++i) {
 			  //command->gwo[i] = global_work_offset ? global_work_offset[i] : 0;
-			  //command->gws[i] = global_work_size[i];
-			  command->gwo[i] = global_work_offset ? global_work_offset_scaled[i] : 0;
-			  command->gws[i] = global_work_size_scaled[i];
+			  command->gws[i] = global_work_size[i];
+			  command->gwo[i] = global_work_offset_scaled[i];
+			  //command->gws[i] = 32; //global_work_size_scaled[i];
+			  fprintf(stderr, "%d %s(%d) : command->gws[%d]=%d, command->gwo[%d]=%d, device=%p\n", getpid(), "clEnqueueNDRangeKernel", __LINE__, i, command->gws[i], i, command->gwo[i], cmq->device);
 			  command->lws[i] = local_work_size ? local_work_size[i] : 1;
 		  }
 		  for (uint i = work_dim; i < 3; ++i) {
 			  command->gwo[i] = 0;
-			  command->gws[i] = 2;
+			  command->gws[i] = 1;
 			  command->lws[i] = 1;
 		  }
 		  for (uint i = 0; i < 3; ++i) {
@@ -3697,8 +3708,8 @@ __wrap_clEnqueueNDRangeKernel
 		  if (g_platform.cluster) command->DisclosedToUser();
 #endif
 
-		  printf("EnqueueNDRangeKernel %d\n", __LINE__);
-		  //cmq->Enqueue(command);
+		  //printf("EnqueueNDRangeKernel %d\n", __LINE__);
+		  cmq->Enqueue(command);
 		  cmq_count++;
 	  }
 

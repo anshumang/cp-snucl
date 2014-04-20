@@ -1568,6 +1568,9 @@ void CLScheduler::Issue(CLCommand* command) {
 			command->event->SetTimestamp(CL_PROFILING_COMMAND_SUBMIT);
     command->event->SetStatus(CL_SUBMITTED);
     EnqueueReadyQueue(command, device);
+    if(command->type == CL_COMMAND_NDRANGE_KERNEL){
+	    fprintf(stderr, "%d %s(%d) : device=%p\n", getpid(), "CLScheduler::Issue", __LINE__, device);
+    }
   }
 }
 

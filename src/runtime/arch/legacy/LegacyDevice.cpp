@@ -314,7 +314,10 @@ void LegacyCLDevice::LaunchKernel(CLCommand* command) {
   }
 
   cl_event e;
+  fprintf(stderr, "%d %s(%d) : cmq=%p, k=%p, workdim=%d, gwo[0]=%d, gws[0]=%d, lws[0]=%d, device=%p\n", getpid(), "LegacyCLDevice::LaunchKernel", __LINE__, cmq, k, command->work_dim, command->gwo[0], command->gws[0], command->lws[0], this);
+  command->gwo[0] = 0; command->gwo[1] = 0; command->gwo[2] = 0;
   err = __real_clEnqueueNDRangeKernel(cmq, k, command->work_dim, command->gwo, command->gws, command->lws, 0, NULL, &e);
+  fprintf(stderr, "%d %s(%d) : __real_clEnqueueNDRangeKernel done...\n", getpid(), "LegacyCLDevice::LaunchKernel", __LINE__);
   SNUCL_ECHECK(err);
 
   err = __real_clWaitForEvents(1, &e);

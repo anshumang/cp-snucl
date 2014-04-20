@@ -3,9 +3,14 @@
 #include <string.h>
 #include <stdlib.h>
 
-const char* kernel_src = "__kernel void sample(__global int* dst, __global int* src, int offset) {\n"
+/*const char* kernel_src = "__kernel void sample(__global int* dst, __global int* src, int offset) {\n"
                          "  int id = get_global_id(0);\n"
                          "  dst[id] = src[id] + offset;\n"
+                         "}\n";
+*/
+const char* kernel_src = "__kernel void sample(__global int* dst, __global int* src, int offset) {\n"
+                         "  int id = get_global_id(0);\n"
+                         "  src[id] = src[id] + offset;\n"
                          "}\n";
 
 int main(int argc, char** argv)
@@ -37,7 +42,7 @@ int main(int argc, char** argv)
 
   int* host_src = (int*) calloc(SIZE, sizeof(int));
   for (int i = 0; i < SIZE; i++) {
-    host_src[i] = -33; //i * 10;
+    host_src[i] = -555; //i * 10;
   }
 
   int* host_dst = (int*) calloc(SIZE, sizeof(int));
@@ -74,7 +79,7 @@ int main(int argc, char** argv)
   //err = clEnqueueWriteBuffer(command_queue, buffer_dst, CL_TRUE, 0, SIZE * sizeof(int), host_dst, 0, NULL, NULL);
   //if (err != CL_SUCCESS) { printf("[%s:%d] ERR[%d]", __FILE__, __LINE__, err); exit(EXIT_FAILURE); }
 
-  /*kernel = clCreateKernel(program, "sample", &err);
+  kernel = clCreateKernel(program, "sample", &err);
   if (err != CL_SUCCESS) { printf("[%s:%d] ERR[%d]", __FILE__, __LINE__, err); exit(EXIT_FAILURE); }
 
   err = clSetKernelArg(kernel, 0, sizeof(cl_mem), (void*) &buffer_dst);
@@ -86,8 +91,16 @@ int main(int argc, char** argv)
   int offset = 100;
   err = clSetKernelArg(kernel, 2, sizeof(cl_int), (void*) &offset);
   if (err != CL_SUCCESS) { printf("[%s:%d] ERR[%d]", __FILE__, __LINE__, err); exit(EXIT_FAILURE); }
-  */
-  //err = clEnqueueNDRangeKernel(command_queue, kernel, 1, NULL, &global, &local, 0, NULL, NULL);
+  
+  //global = global/2;
+  err = clEnqueueNDRangeKernel(command_queue, kernel, 1, NULL, &global, &local, 0, NULL, NULL);
+  if (err != CL_SUCCESS) { printf("[%s:%d] ERR[%d]", __FILE__, __LINE__, err); exit(EXIT_FAILURE); }
+
+  //size_t gwo = global;
+  //err = clEnqueueNDRangeKernel(command_queue, kernel, 1, &gwo, &global, &local, 0, NULL, NULL);
+  //if (err != CL_SUCCESS) { printf("[%s:%d] ERR[%d]", __FILE__, __LINE__, err); exit(EXIT_FAILURE); }
+
+  //err = clFinish(command_queue);
   //if (err != CL_SUCCESS) { printf("[%s:%d] ERR[%d]", __FILE__, __LINE__, err); exit(EXIT_FAILURE); }
 
   //err = clEnqueueReadBuffer(command_queue, buffer_dst, CL_TRUE, 0, SIZE * sizeof(int), host_dst, 0, NULL, NULL);
