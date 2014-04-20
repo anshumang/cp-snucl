@@ -30,14 +30,14 @@ int main(int argc, char** argv)
 
   cl_uint num_dev = 1;
   err = clGetDeviceIDs(platform, DEV_TYPE, num_dev, &device, &num_dev);
-  printf("clGetDeviceIDs : device = 0x%x\n", device);
+  //printf("clGetDeviceIDs : device = 0x%x\n", device);
   if (err != CL_SUCCESS) { printf("[%s:%d] ERR[%d]\n", __FILE__, __LINE__, err); exit(EXIT_FAILURE); }
 
   if (num_dev < 1) exit(EXIT_FAILURE);
 
   int* host_src = (int*) calloc(SIZE, sizeof(int));
   for (int i = 0; i < SIZE; i++) {
-    host_src[i] = i * 10;
+    host_src[i] = -33; //i * 10;
   }
 
   int* host_dst = (int*) calloc(SIZE, sizeof(int));
@@ -61,10 +61,20 @@ int main(int argc, char** argv)
   err = clBuildProgram(program, 1, &device, NULL, NULL, NULL);
   if (err != CL_SUCCESS) { printf("[%s:%d] ERR[%d]", __FILE__, __LINE__, err); exit(EXIT_FAILURE); }
 
+  /*fprintf(stderr, "%s(%d) : size = %d\n", "main", __LINE__, SIZE * sizeof(int));
+  for(int i=0; i<16; i++){
+    fprintf(stderr, "%s(%d) : ptr[%d] = %d\n", "main", __LINE__, i, *((int *)host_src + i));
+  }
+  for(int i=0; i<16; i++){
+    fprintf(stderr, "%s(%d) : ptr[%d] = %d\n", "main", __LINE__, i, *((int *)host_src + 16 + i));
+  }*/
   err = clEnqueueWriteBuffer(command_queue, buffer_src, CL_TRUE, 0, SIZE * sizeof(int), host_src, 0, NULL, NULL);
   if (err != CL_SUCCESS) { printf("[%s:%d] ERR[%d]", __FILE__, __LINE__, err); exit(EXIT_FAILURE); }
 
-  kernel = clCreateKernel(program, "sample", &err);
+  //err = clEnqueueWriteBuffer(command_queue, buffer_dst, CL_TRUE, 0, SIZE * sizeof(int), host_dst, 0, NULL, NULL);
+  //if (err != CL_SUCCESS) { printf("[%s:%d] ERR[%d]", __FILE__, __LINE__, err); exit(EXIT_FAILURE); }
+
+  /*kernel = clCreateKernel(program, "sample", &err);
   if (err != CL_SUCCESS) { printf("[%s:%d] ERR[%d]", __FILE__, __LINE__, err); exit(EXIT_FAILURE); }
 
   err = clSetKernelArg(kernel, 0, sizeof(cl_mem), (void*) &buffer_dst);
@@ -76,7 +86,7 @@ int main(int argc, char** argv)
   int offset = 100;
   err = clSetKernelArg(kernel, 2, sizeof(cl_int), (void*) &offset);
   if (err != CL_SUCCESS) { printf("[%s:%d] ERR[%d]", __FILE__, __LINE__, err); exit(EXIT_FAILURE); }
-
+  */
   //err = clEnqueueNDRangeKernel(command_queue, kernel, 1, NULL, &global, &local, 0, NULL, NULL);
   //if (err != CL_SUCCESS) { printf("[%s:%d] ERR[%d]", __FILE__, __LINE__, err); exit(EXIT_FAILURE); }
 
@@ -87,6 +97,21 @@ int main(int argc, char** argv)
   if (err != CL_SUCCESS) { printf("[%s:%d] ERR[%d]", __FILE__, __LINE__, err); exit(EXIT_FAILURE); }
 
   for (int i = 0; i < SIZE; i++) printf("[%2d] %d\n", i, host_dst[i]);
+
+  //memset(host_src, 0, SIZE*sizeof(int));
+
+  //err = clEnqueueWriteBuffer(command_queue, buffer_src, CL_TRUE, 0, SIZE * sizeof(int), host_src, 0, NULL, NULL);
+  //if (err != CL_SUCCESS) { printf("[%s:%d] ERR[%d]", __FILE__, __LINE__, err); exit(EXIT_FAILURE); }
+
+  //err = clEnqueueReadBuffer(command_queue, buffer_src, CL_TRUE, 0, SIZE * sizeof(int), host_dst, 0, NULL, NULL);
+  //if (err != CL_SUCCESS) { printf("[%s:%d] ERR[%d]", __FILE__, __LINE__, err); exit(EXIT_FAILURE); }
+
+  //for (int i = 0; i < SIZE; i++) printf("[%2d] %d\n", i, host_dst[i]);
+
+  //err = clEnqueueReadBuffer(command_queue, buffer_src, CL_TRUE, 0, SIZE * sizeof(int), host_dst, 0, NULL, NULL);
+  //if (err != CL_SUCCESS) { printf("[%s:%d] ERR[%d]", __FILE__, __LINE__, err); exit(EXIT_FAILURE); }
+
+  //for (int i = 0; i < SIZE; i++) printf("[%2d] %d\n", i, host_dst[i]);
 
   free(host_src);
   free(host_dst);

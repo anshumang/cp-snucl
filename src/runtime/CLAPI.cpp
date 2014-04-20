@@ -46,6 +46,7 @@
 #include <assert.h>
 #include <set>
 #include <iostream>
+#include <arch/legacy/LegacyDevice.h>
 
 using namespace std;
 
@@ -106,43 +107,6 @@ CL_API_ENTRY cl_int CL_API_CALL
 __wrap_clGetDeviceIDs
 #else
 clGetDeviceIDs
-/*#endif
-              (cl_platform_id   platform,
-               cl_device_type   device_type, 
-               cl_uint          num_entries, 
-               cl_device_id *   devices, 
-               cl_uint *        num_devices) CL_API_SUFFIX__VERSION_1_0 {
-
-  if (platform != &g_platform.st_obj) return CL_INVALID_PLATFORM;
-
-  if (device_type != CL_DEVICE_TYPE_ALL && (!(device_type & (CL_DEVICE_TYPE_DEFAULT | CL_DEVICE_TYPE_CPU | CL_DEVICE_TYPE_GPU | CL_DEVICE_TYPE_ACCELERATOR | CL_DEVICE_TYPE_CUSTOM)))) return CL_INVALID_DEVICE_TYPE;
-
-  if ((num_entries == 0 && devices != NULL) || (num_devices == NULL && devices == NULL))
-    return CL_INVALID_VALUE;
-
-  cl_uint num_devices_ret = 0;
-  
-  if (device_type == CL_DEVICE_TYPE_DEFAULT) device_type = CL_DEVICE_TYPE_GPU;
-
-  for (int i = 0; i < (int) g_platform.devices.size(); ++i) {
-    if (g_platform.devices[i]->type & device_type) {
-			if (device_type == CL_DEVICE_TYPE_ALL && g_platform.devices[i]->type == CL_DEVICE_TYPE_CUSTOM) continue;
-      if (devices != NULL && num_devices_ret < num_entries) {
-        devices[num_devices_ret] = &g_platform.devices[i]->st_obj;
-      }
-      num_devices_ret++;
-    }
-  }
-
-  if (num_devices) {
-		*num_devices = num_devices_ret;
-		if (num_entries > 0 && num_devices_ret > num_entries) *num_devices = num_entries;
-	}
-
-  if (num_devices_ret == 0) return CL_DEVICE_NOT_FOUND;
-
-  return CL_SUCCESS;
-}*/
 #endif
               (cl_platform_id   platform,
                cl_device_type   device_type, 
@@ -168,22 +132,24 @@ clGetDeviceIDs
 			if (device_type == CL_DEVICE_TYPE_ALL && g_platform.devices[i]->type == CL_DEVICE_TYPE_CUSTOM) continue;
       if (devices != NULL && num_devices_ret < num_entries) {
         //devices[num_devices_ret] = &g_platform.devices[i]->st_obj;
-        printf( "%d : g_platform.devices [%d]->st_obj = 0x%x\n", __LINE__, i, g_platform.devices[i]->st_obj);
-        printf( "%d : &g_platform.devices [%d]->st_obj = 0x%x\n", __LINE__, i, &g_platform.devices[i]->st_obj);
+        fprintf( stderr, "%s(%d) : g_platform.devices[%d]->dev = %p\n", "clGetDeviceIDs", __LINE__, i, static_cast<LegacyCLDevice *>(g_platform.devices[i])->dev);
+        //printf( "%d : &g_platform.devices [%d]->st_obj = 0x%x\n", __LINE__, i, &g_platform.devices[i]->st_obj);
         devices[num_devices_ret] = &g_platform.devices[i]->st_obj;
 
         int j = 0;
+	CLDevice **curr_dev_ptr = (CLDevice **)(devices[num_devices_ret]);
         while( j<SPLIT_FACTOR-1){
            if(dev == i){
 		dev = (dev + 1)%((int) g_platform.devices.size());
                 continue;
            }
-	   printf("%d : g_platform.devices[%d]->st_obj = 0x%x\n", __LINE__, dev, g_platform.devices[dev]->st_obj);
-	   printf("%d : &g_platform.devices[%d]->st_obj = 0x%x\n", __LINE__, dev, &g_platform.devices[dev]->st_obj);
-           CLDevice **curr_dev_ptr = (CLDevice **)(devices[num_devices_ret]);
-	   printf("%d : curr_dev_ptr = 0x%x\n", __LINE__, curr_dev_ptr);
-	   printf("%d : *curr_dev_ptr = 0x%x\n", __LINE__, *curr_dev_ptr);
+
+	   //printf("%d : g_platform.devices[%d]->st_obj = 0x%x\n", __LINE__, dev, g_platform.devices[dev]->st_obj);
+	   //printf("%d : &g_platform.devices[%d]->st_obj = 0x%x\n", __LINE__, dev, &g_platform.devices[dev]->st_obj);
+	   //printf("%d : curr_dev_ptr = 0x%x\n", __LINE__, curr_dev_ptr);
+	   //printf("%d : *curr_dev_ptr = 0x%x\n", __LINE__, *curr_dev_ptr);
 	   (*curr_dev_ptr)->split_peers.push_back(&g_platform.devices[dev]->st_obj);
+	   fprintf( stderr, "%s(%d) : g_platform.devices[%d]->dev = %p\n", "clGetDeviceIDs", __LINE__, dev, static_cast<LegacyCLDevice *>(g_platform.devices[dev])->dev);
            j++;
         }
 
@@ -192,14 +158,14 @@ clGetDeviceIDs
       }
     }
 
-  for(int i=0; i<num_devices_ret-1; i++){
+  /*for(int i=0; i<num_devices_ret-1; i++){
          printf("%d : devices[%d] = 0x%x\n", __LINE__, i, devices[i]);
 	 int j = 0;
 	 while( j<SPLIT_FACTOR-1){
 		 printf("%d : devices[%d].split_peers[%d] = 0x%x\n", __LINE__, i, j, (*((CLDevice **)devices[i]))->split_peers[j]);
 		 j++;
 	  }
-  }
+  }*/
 
   if (num_devices) {
 		*num_devices = num_devices_ret;
@@ -380,7 +346,6 @@ clReleaseDevice
   return CL_SUCCESS;
 }
 
-//SNS_ to be changed. Constant device number at start. Get the number of devices and then use that each time to create a context
 /* Context APIs */
 CL_API_ENTRY cl_context CL_API_CALL
 #ifdef SNS
@@ -388,49 +353,6 @@ CL_API_ENTRY cl_context CL_API_CALL
 __wrap_clCreateContext
 #else
 clCreateContext
-/*#endif
-               (const cl_context_properties * properties,
-                cl_uint                       num_devices,
-                const cl_device_id *          devices,
-                void (CL_CALLBACK *pfn_notify)(const char *, const void *, size_t, void *),
-                void *                        user_data,
-                cl_int *                      errcode_ret) CL_API_SUFFIX__VERSION_1_0 {
-  cl_int err = CL_SUCCESS;
-	size_t num_properties = 0;
-
-  if (devices == NULL) err = CL_INVALID_VALUE;
-  if (num_devices == 0) err = CL_INVALID_VALUE;
-  if (pfn_notify == NULL && user_data != NULL) err = CL_INVALID_VALUE;
-
-  if (errcode_ret) *errcode_ret = err;
-  if (err != CL_SUCCESS) return NULL;
-
-	SNUCL_DevicesVerification(g_platform.devices, g_platform.devices.size(), devices, num_devices, err);
-
-	for (uint i=0; i<num_devices; i++) {
-		if (!devices[i]->c_obj->available) {
-			err = CL_DEVICE_NOT_AVAILABLE;
-			break;
-		}
-	}
-
-  if (errcode_ret) *errcode_ret = err;
-  if (err != CL_SUCCESS) return NULL;
-
-  CLContext* context = new CLContext(num_devices, devices);
-	err = context->SetProperties(properties);
-
-  if (errcode_ret) *errcode_ret = err;
-  if (err != CL_SUCCESS) {
-		delete context;
-		return NULL;
-	}
-
-  return &context->st_obj;
-}
-#else
-__wrap_sns_clCreateContext
-*/
 #endif
                (const cl_context_properties * properties,
                 cl_uint                       num_devices,
@@ -457,26 +379,26 @@ __wrap_sns_clCreateContext
 
   set<_cl_device_id *> device_set;
   for(int i=0; i  < num_devices; i++){
-        printf("%d : devices[%d] = 0x%x\n", __LINE__, i, devices[i]);
+        //printf("%d : devices[%d] = 0x%x\n", __LINE__, i, devices[i]);
  
         device_set.insert(devices[i]);
         for(int j=0; j<SPLIT_FACTOR-1; j++){
-		printf("%d : devices[%d].split_peers[%d] = 0x%x\n",__LINE__, i,j,(*((CLDevice **)devices[i]))->split_peers[j]);
+		//printf("%d : devices[%d].split_peers[%d] = 0x%x\n",__LINE__, i,j,(*((CLDevice **)devices[i]))->split_peers[j]);
 		device_set.insert((*((CLDevice **)devices[i]))->split_peers[j]);
         }
 
   } 
 	 
    int device_set_size = device_set.size();
-   printf("%d : device_set_size = %d\n", __LINE__, device_set.size());
+   //printf("%d : device_set_size = %d\n", __LINE__, device_set.size());
    _cl_device_id **new_devices = new _cl_device_id*[device_set_size];
    int elem = 0;
    for(set<_cl_device_id *>::iterator d_s_iter=device_set.begin(); d_s_iter != device_set.end(); d_s_iter++){
-	printf("%d : device_set[%d] = 0x%x\n", __LINE__, elem, (*d_s_iter));
-	printf("%d : device_set[%d]->c_obj = 0x%x\n", __LINE__, elem, (*d_s_iter)->c_obj);
+	//printf("%d : device_set[%d] = 0x%x\n", __LINE__, elem, (*d_s_iter));
+	//printf("%d : device_set[%d]->c_obj = 0x%x\n", __LINE__, elem, (*d_s_iter)->c_obj);
 	new_devices[elem] = (*d_s_iter);
-	printf("%d : new_devices[%d] = 0x%x\n", __LINE__, elem, new_devices[elem]);
-	printf("%d : new_devices[%d]->c_obj = 0x%x\n", __LINE__, elem, new_devices[elem]->c_obj);
+	//printf("%d : new_devices[%d] = 0x%x\n", __LINE__, elem, new_devices[elem]);
+	//printf("%d : new_devices[%d]->c_obj = 0x%x\n", __LINE__, elem, new_devices[elem]->c_obj);
 	elem++;
    }
 
@@ -492,7 +414,7 @@ __wrap_sns_clCreateContext
 
   for(int i=0; i<device_set_size; i++){
 
-	printf("%d : context->devices[%d] = 0x%x\n",__LINE__, i, context->devices[i]);
+	//fprintf(stderr, "%s(%d) : context->devices[%d]->dev = %p\n","clCreateContext", __LINE__, i, static_cast<LegacyCLDevice *>(context->devices[i])->dev);
   }
   return &context->st_obj;
   //return &sns_context->st_obj;
@@ -609,25 +531,6 @@ CL_API_ENTRY cl_command_queue CL_API_CALL
 __wrap_clCreateCommandQueue
 #else
 clCreateCommandQueue
-/*#endif
-                    (cl_context                     context, 
-                     cl_device_id                   device, 
-                     cl_command_queue_properties    properties,
-                     cl_int *                       errcode_ret) CL_API_SUFFIX__VERSION_1_0 {
-  cl_int err = CL_SUCCESS;
-	if (context == NULL) err = CL_INVALID_CONTEXT;
-	SNUCL_DevicesVerification(context->c_obj->devices, context->c_obj->devices.size(), &device, 1, err);
-
-  if (errcode_ret) *errcode_ret = err;
-  if (err != CL_SUCCESS) return NULL;
-
-  CLCommandQueue* command_queue = new CLCommandQueue(context->c_obj, device->c_obj, properties);
-
-  return &command_queue->st_obj;
-}
-#else
-__wrap_sns_clCreateCommandQueue
-*/
 #endif
                     (cl_context                     context, 
                      cl_device_id                   device, 
@@ -641,13 +544,13 @@ __wrap_sns_clCreateCommandQueue
   if (err != CL_SUCCESS) return NULL;
 
   CLCommandQueue* command_queue = new CLCommandQueue(context->c_obj, device->c_obj, properties);
-  printf("%d : command_queue->st_obj = 0x%x\n", __LINE__, command_queue->st_obj);
-  printf("%d : &command_queue->st_obj = 0x%x\n", __LINE__, &command_queue->st_obj);
+  //printf("%d : command_queue->st_obj = 0x%x\n", __LINE__, command_queue->st_obj);
+  //printf("%d : &command_queue->st_obj = 0x%x\n", __LINE__, &command_queue->st_obj);
   for(int j=0; j<SPLIT_FACTOR-1; j++){
-	printf("%d : device.split_peers[%d]->c_obj = 0x%x\n", __LINE__, j, (*((CLDevice **)device))->split_peers[j]->c_obj);
+	//printf("%d : device.split_peers[%d]->c_obj = 0x%x\n", __LINE__, j, (*((CLDevice **)device))->split_peers[j]->c_obj);
         CLCommandQueue* peer_c_q = new CLCommandQueue(context->c_obj,(*((CLDevice **)device))->split_peers[j]->c_obj, properties);
-	printf("%d : peer_c_q->st_obj = 0x%x\n", __LINE__, peer_c_q->st_obj);
-	printf("%d : &peer_c_q->st_obj = 0x%x\n", __LINE__, &peer_c_q->st_obj);
+	//printf("%d : peer_c_q->st_obj = 0x%x\n", __LINE__, peer_c_q->st_obj);
+	//printf("%d : &peer_c_q->st_obj = 0x%x\n", __LINE__, &peer_c_q->st_obj);
 	command_queue->split_peers.push_back(&peer_c_q->st_obj);
   }
 
@@ -722,31 +625,6 @@ CL_API_ENTRY cl_mem CL_API_CALL
 __wrap_clCreateBuffer
 #else
 clCreateBuffer
-/*
-#endif
-              (cl_context   context,
-               cl_mem_flags flags,
-               size_t       size,
-               void *       host_ptr,
-               cl_int *     errcode_ret) CL_API_SUFFIX__VERSION_1_0 {
-  cl_int err = CL_SUCCESS;
-  if (context == NULL) err = CL_INVALID_CONTEXT;
-  else if (size == 0) err = CL_INVALID_BUFFER_SIZE;
-  else if ((host_ptr == NULL) && (flags & (CL_MEM_USE_HOST_PTR | CL_MEM_COPY_HOST_PTR))) err = CL_INVALID_HOST_PTR;
-  else if ((host_ptr != NULL) && (!(flags & (CL_MEM_USE_HOST_PTR | CL_MEM_COPY_HOST_PTR)))) err = CL_INVALID_HOST_PTR;
-  if (g_platform.cluster && (flags & CL_MEM_USE_HOST_PTR)) err = CL_INVALID_OPERATION;
-
-  if (errcode_ret) *errcode_ret = err;
-  if (err != CL_SUCCESS) return NULL;
-
-  CLMem* mem = new CLMem(context->c_obj, flags, size, host_ptr, false);
-  g_platform.profiler->CreateMem(mem);
-
-  return &mem->st_obj;
-}
-#else
-__wrap_sns_clCreateBuffer
-*/
 #endif
               (cl_context   context,
                cl_mem_flags flags,
@@ -2350,8 +2228,6 @@ clFinish
   return CL_SUCCESS;
 }
 
-//TODO:change cb -> size
-//TODO new Command -> CommandFactory
 /* Enqueued Commands APIs */
 CL_API_ENTRY cl_int CL_API_CALL
 #ifdef SNS
@@ -2359,61 +2235,6 @@ CL_API_ENTRY cl_int CL_API_CALL
 __wrap_clEnqueueReadBuffer
 #else
 clEnqueueReadBuffer
-/*
-#endif
-                   (cl_command_queue    command_queue,
-                    cl_mem              buffer,
-                    cl_bool             blocking_read,
-                    size_t              offset,
-                    size_t              cb, 
-                    void *              ptr,
-                    cl_uint             num_events_in_wait_list,
-                    const cl_event *    event_wait_list,
-                    cl_event *          event) CL_API_SUFFIX__VERSION_1_0 {
-  if (command_queue == NULL) return CL_INVALID_COMMAND_QUEUE;
-  if (buffer == NULL) return CL_INVALID_MEM_OBJECT;
-  CLCommandQueue* cmq = command_queue->c_obj;
-
-	if (cmq->context != buffer->c_obj->context) return CL_INVALID_CONTEXT;
-
-  for (uint i = 0; i < num_events_in_wait_list; ++i) {
-		if (!event_wait_list[i])
-			return CL_INVALID_EVENT_WAIT_LIST;
-
-		if (event_wait_list[i]->c_obj->context->c_obj != cmq->context )
-			return CL_INVALID_CONTEXT;
-	}
-
-	CLMem* b = buffer->c_obj;
-	if (cb + offset > b->size || offset > b->size || ptr == NULL) return CL_INVALID_VALUE;
-
-  if ((event_wait_list == NULL && num_events_in_wait_list > 0) || (event_wait_list != NULL && num_events_in_wait_list == 0)) return CL_INVALID_EVENT_WAIT_LIST;
-
-	if (b->flags & (CL_MEM_HOST_WRITE_ONLY | CL_MEM_HOST_NO_ACCESS))
-		return CL_INVALID_OPERATION;
-
-  //TODO::SetCommand
-  CLCommand* command = new CLCommand(cmq, num_events_in_wait_list, event_wait_list, CL_COMMAND_READ_BUFFER);
-  command->mem_src = buffer->c_obj;
-	command->mem_src->SetCommand(command);
-  command->off_src = offset;
-  command->cb = cb;
-  command->ptr = ptr;
-
-  if (event) *event = command->DisclosedToUser();
-  if (g_platform.cluster) command->DisclosedToUser();
-
-  cmq->Enqueue(command);
-
-  if (blocking_read == CL_TRUE) 
-		if(command->event->Wait() < 0)
-			return CL_EXEC_STATUS_ERROR_FOR_EVENTS_IN_WAIT_LIST;
-
-  return CL_SUCCESS;
-}
-#else 				//Verify adding from here siddharth
-__wrap_sns_clEnqueueReadBuffer
-*/
 #endif
                    (cl_command_queue    command_queue,
                     cl_mem              buffer,
@@ -2427,6 +2248,7 @@ __wrap_sns_clEnqueueReadBuffer
   if (command_queue == NULL) return CL_INVALID_COMMAND_QUEUE;
 
   	CLCommandQueue* cmq = command_queue->c_obj;
+	//fprintf(stderr, "%s(%d) : command_queue->dev = %p\n", "clEnqueueReadBuffer", __LINE__, static_cast<LegacyCLDevice *>(cmq->device)->dev);
   	if (buffer == NULL) return CL_INVALID_MEM_OBJECT;
 
 	if (cmq->context != buffer->c_obj->context) return CL_INVALID_CONTEXT;
@@ -2460,13 +2282,23 @@ __wrap_sns_clEnqueueReadBuffer
   	if (event) *event = command->DisclosedToUser();
   	if (g_platform.cluster) command->DisclosedToUser();
 
+	//printf("EnqueueReadBuffer %d\n", __LINE__);
   	cmq->Enqueue(command);
+
+	if (blocking_read == CL_TRUE) 
+		if(command->event->Wait() < 0)
+			return CL_EXEC_STATUS_ERROR_FOR_EVENTS_IN_WAIT_LIST;
+	/*fprintf(stderr, "%s(%d) : off_src=%d, cb=%d\n", "clEnqueueReadBuffer", __LINE__, command->off_src, command->cb);
+	for(int i=0; i<16; i++){
+		fprintf(stderr, "%s(%d) : ptr[%d] = %d\n", "clEnqueueReadBuffer", __LINE__, i, *((int *)(ptr)+i));
+	}*/
 
 	int cq_count = 1;
 
 	for(int i=0; i<SPLIT_FACTOR-1; i++){
 
 		CLCommandQueue *cmq = (*((CLCommandQueue **)command_queue))->split_peers[i]->c_obj;
+		//fprintf(stderr, "%s(%d) : command_queue->split_peers[%d]->dev = %p\n", "clEnqueueReadBuffer", __LINE__, i, static_cast<LegacyCLDevice *>((*((CLCommandQueue **)command_queue))->split_peers[i]->c_obj->device)->dev);
 		if (cmq->context != buffer->c_obj->context) return CL_INVALID_CONTEXT;
 
   		for (uint i = 0; i < num_events_in_wait_list; ++i) {
@@ -2482,7 +2314,8 @@ __wrap_sns_clEnqueueReadBuffer
 		CLMem* b = buffer->c_obj;
 //		if (cb + offset > b->size || offset > b->size || ptr == NULL) return CL_INVALID_VALUE;
 
-		if (cb/peer_set_size + offset > b->size || curr_offset > b->size || ptr == NULL) return CL_INVALID_VALUE;
+		  //printf("cb = %d, curr_offset = %d, b->size = %d, ptr = 0x%x\n", cb, curr_offset, b->size, ptr);
+		if (cb/peer_set_size + curr_offset > b->size || curr_offset > b->size || ptr == NULL) return CL_INVALID_VALUE;
 
   		if ((event_wait_list == NULL && num_events_in_wait_list > 0) || (event_wait_list != NULL && num_events_in_wait_list == 0)) return CL_INVALID_EVENT_WAIT_LIST;
 
@@ -2496,22 +2329,24 @@ __wrap_sns_clEnqueueReadBuffer
   		command->off_src = curr_offset;
   		//command->cb = cb;
   		command->cb = cb/peer_set_size;
-  		command->ptr = (void *) ptr + curr_offset;
+  		command->ptr = (int *) ptr + (curr_offset/sizeof(int));
 
   		if (event) *event = command->DisclosedToUser();
   		if (g_platform.cluster) command->DisclosedToUser();
 
+		//printf("EnqueueReadBuffer %d\n", __LINE__);
 	  	cmq->Enqueue(command);
 		cq_count++;
 		if (blocking_read == CL_TRUE) 
 			if(command->event->Wait() < 0)
 				return CL_EXEC_STATUS_ERROR_FOR_EVENTS_IN_WAIT_LIST;
 	
+		/*fprintf(stderr, "%s(%d) : off_src=%d, cb=%d\n", "clEnqueueReadBuffer", __LINE__, command->off_src, command->cb);
+		for(int i=0; i<16; i++){
+			fprintf(stderr, "%s(%d) : ptr[%d] = %d\n", "clEnqueueReadBuffer", __LINE__, i, *((int *)(ptr)+(curr_offset/sizeof(int))+i));
+		}*/
 	}//Loop end
 	
-	if (blocking_read == CL_TRUE) 
-		if(command->event->Wait() < 0)
-			return CL_EXEC_STATUS_ERROR_FOR_EVENTS_IN_WAIT_LIST;
 
   return CL_SUCCESS;
 }
@@ -2615,60 +2450,6 @@ CL_API_ENTRY cl_int CL_API_CALL
 __wrap_clEnqueueWriteBuffer
 #else
 clEnqueueWriteBuffer
-/*
-#endif
-                    (cl_command_queue   command_queue, 
-                     cl_mem             buffer, 
-                     cl_bool            blocking_write, 
-                     size_t             offset, 
-                     size_t             cb, 
-                     const void *       ptr, 
-                     cl_uint            num_events_in_wait_list, 
-                     const cl_event *   event_wait_list, 
-                     cl_event *         event) CL_API_SUFFIX__VERSION_1_0 {
-  if (command_queue == NULL) return CL_INVALID_COMMAND_QUEUE;
-  CLCommandQueue* cmq = command_queue->c_obj;
-  if (buffer == NULL) return CL_INVALID_MEM_OBJECT;
-
-	if (cmq->context != buffer->c_obj->context) return CL_INVALID_CONTEXT;
-
-  for (uint i = 0; i < num_events_in_wait_list; ++i) {
-		if (!event_wait_list[i])
-			return CL_INVALID_EVENT_WAIT_LIST;
-
-		if (event_wait_list[i]->c_obj->context->c_obj != cmq->context )
-			return CL_INVALID_CONTEXT;
-	}
-
-	CLMem* b = buffer->c_obj;
-	if (cb + offset > b->size || offset > b->size || ptr == NULL) return CL_INVALID_VALUE;
-
-  if ((event_wait_list == NULL && num_events_in_wait_list > 0) || (event_wait_list != NULL && num_events_in_wait_list == 0)) return CL_INVALID_EVENT_WAIT_LIST;
-
-	if (b->flags & (CL_MEM_HOST_READ_ONLY | CL_MEM_HOST_NO_ACCESS))
-		return CL_INVALID_OPERATION;
-
-  CLCommand* command = new CLCommand(cmq, num_events_in_wait_list, event_wait_list, CL_COMMAND_WRITE_BUFFER);
-  command->mem_dst = buffer->c_obj;
-	command->mem_dst->SetCommand(command);
-  command->off_dst = offset;
-  command->cb = cb;
-  command->ptr = (void*) ptr;
-
-  if (event) *event = command->DisclosedToUser();
-  if (g_platform.cluster) command->DisclosedToUser();
-
-  cmq->Enqueue(command);
-
-  if (blocking_write == CL_TRUE) 
-		if(command->event->Wait() < 0)
-			return CL_EXEC_STATUS_ERROR_FOR_EVENTS_IN_WAIT_LIST;
-
-  return CL_SUCCESS;
-}
-#else
-__wrap_sns_clEnqueueWriteBuffer
-*/
 #endif
                     (cl_command_queue   command_queue, 
                      cl_mem             buffer, 
@@ -2683,6 +2464,7 @@ __wrap_sns_clEnqueueWriteBuffer
 
   
 	  CLCommandQueue* cmq = command_queue->c_obj;
+	  //fprintf(stderr, "%s(%d) : command_queue->dev = %p\n", "clEnqueueWriteBuffer", __LINE__, static_cast<LegacyCLDevice *>(cmq->device)->dev);
 	  if (buffer == NULL) return CL_INVALID_MEM_OBJECT;
 
 	  if (cmq->context != buffer->c_obj->context) return CL_INVALID_CONTEXT;
@@ -2698,7 +2480,7 @@ __wrap_sns_clEnqueueWriteBuffer
 	  CLMem* b = buffer->c_obj;
 	  if (cb + offset > b->size || offset > b->size || ptr == NULL){
  
-		  printf("%d : %d\n", __LINE__, CL_INVALID_VALUE);
+		  //printf("%d : %d\n", __LINE__, CL_INVALID_VALUE);
 		return CL_INVALID_VALUE;
 	  }
 
@@ -2715,17 +2497,27 @@ __wrap_sns_clEnqueueWriteBuffer
 	  //command->cb = cb;
 	  command->cb = cb/peer_set_size;
 	  command->ptr = (void*) ptr;
-
+	  /*fprintf(stderr, "%s(%d) : off_dst=%d, cb=%d\n", "clEnqueueWriteBuffer", __LINE__, command->off_dst, command->cb);
+	  for(int i=0; i<16; i++){
+		  fprintf(stderr, "%s(%d) : ptr[%d] = %d\n", "clEnqueueWriteBuffer", __LINE__, i, *((int *)(command->ptr)+i));
+	  }
+	  */
 	  if (event) *event = command->DisclosedToUser();
 	  if (g_platform.cluster) command->DisclosedToUser();
 
+	  //printf("EnqueueWriteBuffer %d\n", __LINE__);
 	  cmq->Enqueue(command);
+
+	  if (blocking_write == CL_TRUE) 
+		  if(command->event->Wait() < 0)
+			  return CL_EXEC_STATUS_ERROR_FOR_EVENTS_IN_WAIT_LIST;
 
           int cq_count = 1;
 	
 	  for(int i=0; i<SPLIT_FACTOR-1; i++){
 
 		  CLCommandQueue *cmq = (*((CLCommandQueue **)command_queue))->split_peers[i]->c_obj;
+		  //fprintf(stderr, "%s(%d) : command_queue->split_peers[%d]->dev = %p\n", "clEnqueueWriteBuffer", __LINE__, i, static_cast<LegacyCLDevice *>((*((CLCommandQueue **)command_queue))->split_peers[i]->c_obj->device)->dev);
 		  if (buffer == NULL) return CL_INVALID_MEM_OBJECT;
 
 		  if (cmq->context != buffer->c_obj->context) return CL_INVALID_CONTEXT;
@@ -2742,9 +2534,9 @@ __wrap_sns_clEnqueueWriteBuffer
 
 		  CLMem* b = buffer->c_obj;
 		  //if (cb + offset > b->size || offset > b->size || ptr == NULL) return CL_INVALID_VALUE;
-		  printf("cb = %d, curr_offset = %d, b->size = %d, ptr = 0x%x\n", cb, curr_offset, b->size, ptr);
+		  //printf("cb = %d, curr_offset = %d, b->size = %d, ptr = 0x%x\n", cb, curr_offset, b->size, ptr);
 		  if (cb/peer_set_size + curr_offset > b->size || curr_offset > b->size || ptr == NULL) {
-			printf("%d : %d\n", __LINE__, CL_INVALID_VALUE);
+			//printf("%d : %d\n", __LINE__, CL_INVALID_VALUE);
 			return CL_INVALID_VALUE;
 		  }
 
@@ -2761,21 +2553,22 @@ __wrap_sns_clEnqueueWriteBuffer
 		  //command->cb = cb;
 		  command->cb = cb/peer_set_size;
 		  //command->ptr = (void*) ptr;
-		  command->ptr = (void*) ptr + curr_offset;
-
+		  command->ptr = (int*) ptr + (curr_offset/sizeof(int));
+		  /*fprintf(stderr, "%s(%d) : off_dst=%d, cb=%d\n", "clEnqueueWriteBuffer", __LINE__, command->off_dst, command->cb);
+		  for(int i=0; i<16; i++){
+		  fprintf(stderr, "%s(%d) : ptr[%d] = %d\n", "clEnqueueWriteBuffer", __LINE__, i, *((int *)(command->ptr)+i));
+		  }
+		  */
 		  if (event) *event = command->DisclosedToUser();
 		  if (g_platform.cluster) command->DisclosedToUser();
 
+		  //printf("EnqueueWriteBuffer %d\n", __LINE__);
 		  cmq->Enqueue(command);
 		  cq_count++;
 		  if (blocking_write == CL_TRUE) 
 			  if(command->event->Wait() < 0)
 				  return CL_EXEC_STATUS_ERROR_FOR_EVENTS_IN_WAIT_LIST;
 	  }//Loop end
-
-	  if (blocking_write == CL_TRUE) 
-		  if(command->event->Wait() < 0)
-			  return CL_EXEC_STATUS_ERROR_FOR_EVENTS_IN_WAIT_LIST;
 
   return CL_SUCCESS;
 }
@@ -3813,8 +3606,8 @@ __wrap_clEnqueueNDRangeKernel
 #ifdef ALWAYS_NOTIFY_COMPLETE
 	  if (g_platform.cluster) command->DisclosedToUser();
 #endif
-
-	  cmq->Enqueue(command);
+	  printf("EnqueueNDRangeKernel %d\n", __LINE__);
+	  //cmq->Enqueue(command);
 
           int cmq_count = 1;
 
@@ -3904,7 +3697,8 @@ __wrap_clEnqueueNDRangeKernel
 		  if (g_platform.cluster) command->DisclosedToUser();
 #endif
 
-		  cmq->Enqueue(command);
+		  printf("EnqueueNDRangeKernel %d\n", __LINE__);
+		  //cmq->Enqueue(command);
 		  cmq_count++;
 	  }
 

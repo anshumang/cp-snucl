@@ -80,6 +80,7 @@ int LegacyCLDevice::CreateDevices(vector<CLDevice*>* devices, cl_device_type typ
 
   err = __real_clGetDeviceIDs(platform, type, num_devices, _devices, NULL); 
   for (uint i = 0; i < num_devices; ++i) {
+    fprintf(stderr, "%s(%d) :  _devices[%d] = %p\n", "LegacyCLDevice::CreateDevices", __LINE__, i, _devices[i]);
     devices->push_back(new LegacyCLDevice(_devices[i], type));
   }
 
@@ -343,12 +344,23 @@ void LegacyCLDevice::ReadBuffer(CLCommand* command) {
 
   if (m == NULL) SNUCL_ERROR("MEM[%d] IS NULL", mem->id);
 
+  fprintf(stderr, "%d %s(%d) : cmq=%p, m=%p, off_src=%d, cb=%d, device=%p\n", getpid(), "LegacyCLDevice::ReadBuffer", __LINE__, cmq, m, command->off_src, command->cb, this);
+  /*for(int i=0; i<16; i++){
+        *((int *)(command->ptr)+i) = -2;
+	fprintf(stderr, "%s(%d) : command->ptr[%d] = %d\n", "LegacyCLDevice::ReadBuffer", __LINE__, i, *((int *)(command->ptr)+i));
+  }*/
+  //int *test_read = (int *)calloc(16, sizeof(int));
   err = __real_clEnqueueReadBuffer(cmq, m, CL_TRUE, command->off_src, command->cb, command->ptr, 0, NULL, NULL);
+  //err = __real_clEnqueueReadBuffer(cmq, m, CL_TRUE, command->off_src, command->cb, test_read, 0, NULL, NULL);
   SNUCL_ECHECK(err);
   err = __real_clFlush(cmq);
   SNUCL_ECHECK(err);
 
   command->event->Complete();
+  //fprintf(stderr, "%s(%d) : device = %p, memory = %p, command_q = %p\n", "LegacyCLDevice::ReadBuffer", __LINE__,this, m, cmq);
+  //fprintf(stderr, "%s(%d) : __real_clEnqueueReadBuffer done", "LegacyCLDevice::ReadBuffer", __LINE__);
+  //for(int i=0; i<16; i++)
+	//fprintf(stderr, "%d %s(%d) : test_read[%d] = %d\n", getpid(), "LegacyCLDevice::ReadBuffer", __LINE__, i, test_read[i]);
 }
 
 void LegacyCLDevice::WriteBuffer(CLCommand* command) {
@@ -359,12 +371,18 @@ void LegacyCLDevice::WriteBuffer(CLCommand* command) {
   SNUCL_DEBUG("WRITE BUFFER MEM[%lu]", mem_dst->id);
 
   CheckBuffer(mem_dst);
-
+  /*fprintf(stderr, "%s(%d) : offset = %d, cb = %d\n", "LegacyCLDevice::WriteBuffer", __LINE__, command->off_dst, command->cb);
+  for(int i=0; i<16; i++)
+	fprintf(stderr, "%s(%d) : command->ptr[%d] = %d\n", "LegacyCLDevice::WriteBuffer", __LINE__, i, *((int *)(command->ptr)+i));
+  */
+  //fprintf(stderr, "%s(%d) : Locking...\n", "LegacyCLDevice::WriteBuffer", __LINE__);
   pthread_mutex_lock(&mem_dst->mutex_dev_specific);
   cl_mem m = (cl_mem) mem_dst->dev_specific[this];
   pthread_mutex_unlock(&mem_dst->mutex_dev_specific);
+  //fprintf(stderr, "%s(%d) : Unlocking...\n", "LegacyCLDevice::WriteBuffer", __LINE__);
 
   if (m == NULL) SNUCL_ERROR("MEM[%d] IS NULL", mem_dst->id);
+  fprintf(stderr, "%d %s(%d) : cmq=%p, m=%p, off_dst=%d, cb=%d, device=%p\n", getpid(), "LegacyCLDevice::WriteBuffer", __LINE__, cmq, m, command->off_dst, command->cb, this);
   err = __real_clEnqueueWriteBuffer(cmq, m, CL_TRUE, command->off_dst, command->cb, (const void*) command->ptr, 0, NULL, NULL);
   err |= __real_clFlush(cmq);
   SNUCL_ECHECK(err);
@@ -372,6 +390,13 @@ void LegacyCLDevice::WriteBuffer(CLCommand* command) {
   mem_dst->ClearLatest(this);
 
   command->event->Complete();
+  err |= __real_clFlush(cmq);
+  int *test_read = (int *)calloc(16, sizeof(int));
+  fprintf(stderr, "%d %s(%d) : cmq=%p, m=%p, off_dst=%d, cb=%d, device=%p\n", getpid(), "LegacyCLDevice::WriteBuffer", __LINE__, cmq, m, command->off_dst, command->cb, this);
+  err = __real_clEnqueueReadBuffer(cmq, m, CL_TRUE, command->off_dst, command->cb, (void*) test_read, 0, NULL, NULL);
+  //fprintf(stderr, "%s(%d) : device = %p, memory = %p, command_queue = %p\n", "LegacyCLDevice::WriteBuffer", __LINE__, this, m, cmq);
+  //for(int i=0; i<16; i++)
+	//fprintf(stderr, "%d %s(%d) : test_read_after_write[%d] = %d\n", getpid(), "LegacyCLDevice::WriteBuffer", __LINE__, i, test_read[i]);
 }
 
 void LegacyCLDevice::CopyBuffer(CLCommand* command) {
@@ -746,6 +771,7 @@ void LegacyCLDevice::AllocBuffer(CLMem* mem) {
     } else {
       void* ptr = mem->use_host ? mem->space_host : NULL;
       m = __real_clCreateBuffer(ctx, mem->flags, mem->size, ptr, &err);
+      //fprintf(stderr, "%s(%d) :  m = %p\n", "LegacyCLDevice::AllocBuffer", __LINE__, m);
     }
   } else if (mem->image_desc.image_type == CL_MEM_OBJECT_IMAGE2D) {
     void* ptr = mem->use_host ? mem->space_host : NULL;

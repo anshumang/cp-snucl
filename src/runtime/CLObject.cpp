@@ -969,14 +969,20 @@ bool CLMem::EmptyLatest() {
 
 void CLMem::AddLatest(CLDevice* device) {
   pthread_mutex_lock(&mutex_latest);
-  if (device) device_list.push_back(device);
+  if (device){
+    //fprintf(stderr, "%s(%d) : %p\n", "CLScheduler::AddLatest", __LINE__, static_cast<LegacyCLDevice *>(device)->dev);
+    device_list.push_back(device);
+  }
   pthread_mutex_unlock(&mutex_latest);
 }
 
 void CLMem::ClearLatest(CLDevice* device) {
   pthread_mutex_lock(&mutex_latest);
   device_list.clear();
-  if (device) device_list.push_back(device);
+  if (device){ 
+    //fprintf(stderr, "%s(%d) : %p\n", "CLScheduler::ClearLatest", __LINE__, static_cast<LegacyCLDevice *>(device)->dev);
+    device_list.push_back(device);
+  }
   pthread_mutex_unlock(&mutex_latest);
 }
 
@@ -1759,10 +1765,15 @@ bool CLScheduler::IssueNativeKernel(CLCommand* command) {
 bool CLScheduler::IssueReadBuffer(CLCommand* command) {
   CLMem* mem = command->mem_src;
   CLDevice* dev = command->device;
+  //fprintf(stderr, "%s(%d) : command->device->dev = %p\n", "CLScheduler::IssueReadBuffer", __LINE__, static_cast<LegacyCLDevice *>(command->device)->dev);
   if (!mem->HasLatest(dev) && !mem->EmptyLatest()) {
-    command->device = NearestDevice(mem, dev);
+    //command->device = NearestDevice(mem, dev);
+    //fprintf(stderr, "%s(%d) : command->device->dev = %p\n", "CLScheduler::IssueReadBuffer", __LINE__, static_cast<LegacyCLDevice *>(command->device)->dev);
   }
-
+  fprintf(stderr, "%d %s(%d) : device = %p\n", getpid(), "CLScheduler::IssueReadBuffer", __LINE__, command->device);
+  /*for(int i=0; i<16; i++)
+    fprintf(stderr, "%s(%d) : ptr[%d] = %d\n", "CLScheduler::IssueReadBuffer", __LINE__, i, *(((int *)command->ptr)+i));
+  */
   return true;
 }
 
@@ -1770,17 +1781,23 @@ bool CLScheduler::IssueWriteBuffer(CLCommand* command) {
   CLMem* mem_dst = command->mem_dst;
   size_t off_dst = command->off_dst;
   size_t size = command->cb;
+  /*fprintf(stderr, "%s(%d) : off_dst = %d, size = %d\n", "CLScheduler::IssueWriteBuffer", __LINE__, off_dst, size);
+  for(int i=0; i<16; i++)
+    fprintf(stderr, "%s(%d) : ptr[%d] = %d\n", "CLScheduler::IssueWriteBuffer", __LINE__, i, *(((int *)command->ptr)+i));
+  */
   CLDevice* dev_dst = command->device;
 
   if (CheckRace(&mem_dst, 1, command)) return false;
 
   if (mem_dst->alloc_host && !(off_dst == 0 && size == mem_dst->size)) {
+    //fprintf(stderr, "%s(%d)\n", "CLScheduler::IssueWriteBuffer", __LINE__);
     memcpy((void*) ((size_t) mem_dst->space_host + off_dst), command->ptr, size);
     command->ptr = mem_dst->space_host;
     command->off_dst = 0;
     command->cb = mem_dst->size;
     return true;
   } else if (mem_dst->EmptyLatest() || mem_dst->HasLatest(dev_dst) || (off_dst == 0 && size == mem_dst->size)) {
+    fprintf(stderr, "%d %s(%d) : %p\n", getpid(), "CLScheduler::IssueWriteBuffer", __LINE__, dev_dst);
     return true;
   } else {
     CLDevice* dev_src = NearestDevice(mem_dst, dev_dst);
@@ -1794,11 +1811,13 @@ bool CLScheduler::IssueWriteBuffer(CLCommand* command) {
       cb_command->cb = mem_dst->size;
       cb_command->dev_src = dev_src;
       cb_command->DisclosedToUser();
+      fprintf(stderr, "%d %s(%d) : %p\n", getpid(), "CLScheduler::IssueWriteBuffer", __LINE__, dev_dst);
       EnqueueReadyQueue(cb_command, dev_dst);
 
       command->AddWaitEvent(cb_command->event);
       return false;
     } else {
+      //fprintf(stderr, "%s(%d)\n", "CLScheduler::IssueWriteBuffer", __LINE__);
       CLCommand* rb_command = CommandFactory::instance()->NewCommand(CL_COMMAND_RECV_BUFFER);
       rb_command->mem_src = mem_dst;
       rb_command->mem_dst = mem_dst;
@@ -2261,10 +2280,13 @@ void CLScheduler::UpdateLatest(CLCommand* command, CLDevice* device) {
       {
         CLMem* mem = command->mem_dst;
         if (command->misc[0] == CL_COMMAND_NDRANGE_KERNEL) {
+          //fprintf(stderr, "%s(%d) : %p\n", "CLScheduler::UpdateLatest", __LINE__, static_cast<LegacyCLDevice *>(device)->dev);
           mem->AddLatest(device);
         } else {
           mem->ClearLatest(device);
 
+          //fprintf(stderr, "%s(%d) : %p\n", "CLScheduler::UpdateLatest", __LINE__, static_cast<LegacyCLDevice *>(device)->dev);
+          //mem->AddLatest(device);
           if (mem->alloc_host) {
 //            if (mem->space_host) free(mem->space_host);
             mem->alloc_host = false;
@@ -2286,9 +2308,13 @@ void CLScheduler::UpdateLatest(CLCommand* command, CLDevice* device) {
       {
         CLMem* mem = command->mem_dst;
         if (command->misc[0] == CL_COMMAND_NDRANGE_KERNEL) {
+          //fprintf(stderr, "%s(%d) : %p\n", "CLScheduler::UpdateLatest", __LINE__, static_cast<LegacyCLDevice *>(device)->dev);
           mem->AddLatest(device);
         } else {
           mem->ClearLatest(device);
+          //fprintf(stderr, "%s(%d) : %p\n", "CLScheduler::UpdateLatest", __LINE__, static_cast<LegacyCLDevice *>(device)->dev);
+          //mem->AddLatest(device);
+
         }
       }
       break;

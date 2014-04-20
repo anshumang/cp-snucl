@@ -75,7 +75,7 @@ public:
 
   cl_int GetSupportedImageFormats(cl_mem_flags flags, cl_mem_object_type image_type, cl_uint num_entries, cl_image_format *image_formats, cl_uint * num_image_formats);
 
-private:
+//private:
   cl_device_id      dev;
   cl_context        ctx;
   cl_command_queue  cmq;

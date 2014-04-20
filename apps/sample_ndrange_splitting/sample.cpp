@@ -106,7 +106,7 @@ int main(int argc, char** argv)
   //err = clEnqueueNDRangeKernel(command_queue[0], kernel, 1, NULL, &global, &local, 0, NULL, NULL);
   //if (err != CL_SUCCESS) { printf("[%s:%d] ERR[%d]", __FILE__, __LINE__, err); exit(EXIT_FAILURE); }
   
-  size_t gwo = SIZE/2; global = SIZE/2;
+  size_t gwo = 0; /*SIZE/2;*/ global = SIZE/2;
   err = clEnqueueNDRangeKernel(command_queue[1], kernel, 1, &gwo, &global, &local, 0, NULL, NULL);
   if (err != CL_SUCCESS) { printf("[%s:%d] ERR[%d]", __FILE__, __LINE__, err); exit(EXIT_FAILURE); }
   
