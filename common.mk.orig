@@ -34,19 +34,19 @@ else
 	VERBOSE := @
 endif
 
-#ifeq ($(debug), 1)
-#	CXXFLAGS	+= -g
-#endif
+ifeq ($(debug), 1)
+	CXXFLAGS	+= -g
+endif
 
-#ifeq ($(cluster), 1)
+ifeq ($(cluster), 1)
 	CXX				:= mpic++
 	CXXFLAGS	+= -DCLUSTER
 	LDFLAGS		+= -lsnucl
-	LINKTAIL	+= -Wl,--wrap,main
-#else
-#	CXX 			:= g++
-#	LDFLAGS		+= -lsnucl 
-#endif
+	#LINKTAIL	+= -Wl,--wrap,main
+else
+	CXX 			:= g++
+	LDFLAGS		+= -lsnucl 
+endif
 
 ifeq ($(USEGLLIB),1)
 	LDFLAGS += -lGL -lGLU -lX11 -lXmu
