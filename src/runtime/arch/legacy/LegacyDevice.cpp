@@ -396,7 +396,7 @@ void LegacyCLDevice::WriteBuffer(CLCommand* command) {
   err |= __real_clFlush(cmq);
   int *test_read = (int *)calloc(16, sizeof(int));
   fprintf(stderr, "%d %s(%d) : cmq=%p, m=%p, off_dst=%d, cb=%d, device=%p\n", getpid(), "LegacyCLDevice::WriteBuffer", __LINE__, cmq, m, command->off_dst, command->cb, this);
-  err = __real_clEnqueueReadBuffer(cmq, m, CL_TRUE, command->off_dst, command->cb, (void*) test_read, 0, NULL, NULL);
+  //err = __real_clEnqueueReadBuffer(cmq, m, CL_TRUE, command->off_dst, command->cb, (void*) test_read, 0, NULL, NULL);
   //fprintf(stderr, "%s(%d) : device = %p, memory = %p, command_queue = %p\n", "LegacyCLDevice::WriteBuffer", __LINE__, this, m, cmq);
   //for(int i=0; i<16; i++)
 	//fprintf(stderr, "%d %s(%d) : test_read_after_write[%d] = %d\n", getpid(), "LegacyCLDevice::WriteBuffer", __LINE__, i, test_read[i]);

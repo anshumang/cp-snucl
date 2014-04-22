@@ -42,7 +42,7 @@ int main(int argc, char** argv)
 
   int* host_src = (int*) calloc(SIZE, sizeof(int));
   for (int i = 0; i < SIZE; i++) {
-    host_src[i] = -555; //i * 10;
+    host_src[i] = -666; //i * 10;
   }
 
   int* host_dst = (int*) calloc(SIZE, sizeof(int));
